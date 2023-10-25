@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
   int resend_delay = atoi(argv[1]);
   const char *shm_path = argv[2];
   int offset = atoi(argv[3]);
-  char *address = argv[4];
 
   // Open shared memory using helper_functions
   char *shm = open_shared_memory(shm_path);
