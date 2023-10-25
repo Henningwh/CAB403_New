@@ -1,3 +1,7 @@
+/*
+  All the shm modules that are going to be used in the project
+*/
+
 #ifndef SHM_STRUCTS_H
 #define SHM_STRUCTS_H
 
