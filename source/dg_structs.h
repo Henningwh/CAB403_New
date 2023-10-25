@@ -27,7 +27,7 @@ typedef struct
 typedef struct
 {
   char header[4]; // {'F', 'I', 'R', 'E'}
-} fire_emergency_dgram;
+} fire_emergency_dg;
 
 // Method to add a sensor adress to the sensor struct
 struct addr_entry
@@ -45,6 +45,6 @@ typedef struct
   uint16_t id;
   uint8_t address_count;
   struct addr_entry address_list[50];
-} temp_update_datagram;
+} temp_update_dg;
 
 #endif
