@@ -60,3 +60,6 @@ source/main
 source/program_name
 source/door
 source/main
+
+# Mac-spesific
+.DS_Store
