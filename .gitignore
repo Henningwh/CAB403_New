@@ -56,5 +56,6 @@ dkms.conf
 .vscode/tasks.json
 source/helloworld
 source/main
+source/main
 source/program_name
 source/door
