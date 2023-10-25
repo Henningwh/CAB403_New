@@ -4,12 +4,14 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <pthread.h>
 #include <stdbool.h>
 
-int splitString(const char *input, char *delimiter, char *result[], int maxSegments) {
-    char *str = strdup(input); // Duplicate the input string to avoid modification
-    char *token = strtok(str, delimiter);
+#define BUFFER_SIZE 1024
 
+int splitString(const char *input, char *delimiter, char *result[], int maxSegments) {
+    char *str = strdup(input);
+    char *token = strtok(str, delimiter);
     int segmentCount = 0;
 
     while (token != NULL && segmentCount < maxSegments) {
@@ -18,13 +20,11 @@ int splitString(const char *input, char *delimiter, char *result[], int maxSegme
         segmentCount++;
     }
 
-    free(str); // Free the duplicated string
-
+    free(str);
     return segmentCount;
 }
 
-struct ConnectedRemoteSocket
-{
+struct ConnectedRemoteSocket {
     int remoteSocketFD;
     struct sockaddr_in remoteAddr;
 };
@@ -32,82 +32,104 @@ struct ConnectedRemoteSocket
 struct ConnectedRemoteSocket connectedSockets[100];
 int connectedSocketsCount = 0;
 
-/**
- * Accepts all incomming addresses if no address is specified
- * Binds the port specified to this process
-*/
-struct sockaddr_in* createListenAddress(int port, char* ipAddr){
-    struct sockaddr_in  *listenAddr = malloc(sizeof(struct sockaddr_in));
+struct sockaddr_in* createListenAddress(int port, char* ipAddr) {
+    struct sockaddr_in *listenAddr = malloc(sizeof(struct sockaddr_in));
     listenAddr->sin_family = AF_INET;
     listenAddr->sin_port = htons(port);
-    if(listenAddr == ""){
+    if (strcmp(ipAddr, "") == 0) {
         listenAddr->sin_addr.s_addr = INADDR_ANY;
-    }else{
-        inet_pton(AF_INET,ipAddr,&listenAddr->sin_addr.s_addr);
-        }
-
+    } else {
+        inet_pton(AF_INET, ipAddr, &listenAddr->sin_addr.s_addr);
+    }
     return listenAddr;
 }
 
-spawnThreadsAndHandleMessages(struct ConnectedRemoteSocket* remoteSocket){};
+void* handleClientMessages(void *arg) {
+    struct ConnectedRemoteSocket *remoteSocket = (struct ConnectedRemoteSocket *)arg;
+    char buffer[BUFFER_SIZE];
+    int bytesRead;
 
+    while (1) {
+        bytesRead = recv(remoteSocket->remoteSocketFD, buffer, BUFFER_SIZE, 0);
+        if (bytesRead < 0) {
+            perror("Error receiving data");
+            close(remoteSocket->remoteSocketFD);
+            return NULL;
+        } else if (bytesRead == 0) {
+            printf("Connection closed by the remote client.\n");
+            close(remoteSocket->remoteSocketFD);
+            return NULL;
+        } else {
+            buffer[bytesRead] = '\0'; // Null-terminate the received string
+            printf("Received message: %s\n", buffer);
 
-void continouslyAcceptConnections(int listenSocketFD){
-    while(true){
+            // Add your message processing logic here if needed
 
-        struct sockaddr_in  remoteAddr ;
-        int remoteAddrSize = sizeof (struct sockaddr_in);
-        //Gives the file descriptor id of the remote socket
-        int remoteSocketFD = accept(listenSocketFD, &remoteAddr, &remoteAddrSize);
-        if(remoteSocketFD > 0){
-            printf("Overseer: Socket with port: %d connected successfully\n", remoteAddr.sin_port);
-        }else{
-            printf("Overseer: Connection failed when accepting connection from socket");
+            // Sending a simple acknowledgment (you can expand on this)
+            char response[] = "Received your message!";
+            send(remoteSocket->remoteSocketFD, response, sizeof(response), 0);
         }
-        struct ConnectedRemoteSocket* remoteSocket = malloc(sizeof (struct ConnectedRemoteSocket));
-        remoteSocket->remoteAddr = remoteAddr;
-        remoteSocket->remoteSocketFD = remoteSocketFD;
-        //Adding the connected sockets to an array. Might need to separate arrays for different modules
-        connectedSockets[connectedSocketsCount++] = *remoteSocket;
-
-        //ToDo: deal with responses to the recieved messages
-        spawnThreadsAndHandleMessages(remoteSocket);
-
     }
 }
 
+void spawnThreadsAndHandleMessages(struct ConnectedRemoteSocket* remoteSocket) {
+    pthread_t threadID;
+    pthread_create(&threadID, NULL, handleClientMessages, (void *)remoteSocket);
+    pthread_detach(threadID); // So we don't need to call pthread_join()
+}
 
+void continouslyAcceptConnections(int listenSocketFD) {
+    while (1) {
+        struct sockaddr_in remoteAddr;
+        socklen_t remoteAddrSize = sizeof(remoteAddr);
+        int remoteSocketFD = accept(listenSocketFD, (struct sockaddr*) &remoteAddr, &remoteAddrSize);
+        if (remoteSocketFD > 0) {
+            printf("Overseer: Socket with port: %d connected successfully\n", ntohs(remoteAddr.sin_port));
+        } else {
+            perror("Overseer: Connection failed when accepting connection from socket");
+            continue;
+        }
 
-void overseer(int argC, char *argV[]){
-    printf("inside overseer\n");
+        struct ConnectedRemoteSocket remoteSocket;
+        remoteSocket.remoteAddr = remoteAddr;
+        remoteSocket.remoteSocketFD = remoteSocketFD;
+        connectedSockets[connectedSocketsCount++] = remoteSocket;
+        spawnThreadsAndHandleMessages(&remoteSocket);
+    }
+}
 
-    char **resultArray = (char **)malloc(10 * sizeof(char *));
-    char *input = argV[0];
-    int maxSeqments = 10;
-    splitString(input, ":", resultArray, maxSeqments);
-    char* address = strdup(resultArray[0]);
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <ip:port>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    char **resultArray = (char **)malloc(2 * sizeof(char *));
+    int maxSegments = 2;
+    splitString(argv[1], ":", resultArray, maxSegments);
+    char* address = resultArray[0];
     int port = atoi(resultArray[1]);
-    free(resultArray);
 
-    printf("Address: %s, Port: %d\n", address, port);
-
-    for(int i = 0; i<argC; i++){
-        printf("argV[%d]: %s\n", i, argV[i]);
-    }
-
-    //Ip stuff///////////////////////
     int listenSocketFD = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in* listenAddr = createListenAddress(port, "");
-    //lets the overseer accept all connections since no ip address was specified in listenAddr
-    int bindRes = bind(listenSocketFD, listenAddr, sizeof(*listenAddr));
-    if(bindRes == 0){
-        printf("Overseer: Listen socket bound to port %d\n", port);
-    }else{
-        printf("Overseer: Bind to port %d FAILED\n", port);
+    if (listenSocketFD < 0) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
     }
-    //Continously listening for connections and queueing up to 100
-    int connections = listen(listenSocketFD,100);
-    //accepting connections and messages in separate threads
-    continouslyAcceptConnections(listenSocketFD);
 
+    struct sockaddr_in *listenAddr = createListenAddress(port, address);
+    if (bind(listenSocketFD, (struct sockaddr*)listenAddr, sizeof(*listenAddr)) < 0) {
+        perror("Bind error");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(listenSocketFD, 100) < 0) {
+        perror("Listen error");
+        exit(EXIT_FAILURE);
+    }
+
+    continouslyAcceptConnections(listenSocketFD);
+    
+    free(resultArray);
+    free(listenAddr);
+    return 0;
 }
