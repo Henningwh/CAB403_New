@@ -2,7 +2,6 @@
 /* Safety-critical component block comment:
 This component is safety-critical as it sends emergency signals for fire alarms.
 All deviations or exceptions to the standard practice are justified below:
-TODO: Add any deviations or exceptions.
 
 Make sure to link with the pthread library (-lpthread) when compiling this program.
 */
