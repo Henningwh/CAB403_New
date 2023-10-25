@@ -19,6 +19,7 @@ callpoint.o: callpoint.c
 callpoint: callpoint.o helper_functions.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
+all: $(ALL_COMPONENTS)
 
 clean:
 	rm -f *.o $(ALL_COMPONENTS)
