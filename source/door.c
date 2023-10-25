@@ -7,6 +7,23 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+
+int main(int argc, char *argv[]) {
+    if (argc != 6) {
+        fprintf(stderr, "Usage: %s {id} {address:port} {FAIL_SAFE | FAIL_SECURE} {shared memory path} {shared memory offset} {overseer address:port}\n", argv[0]);
+        return 1; // Exit with an error code
+    }
+
+    // Parse command-line arguments and initialize door controller
+    char *id = argv[1];
+    char *address = argv[2];
+    char *mode = argv[3];
+    char *shm_path = argv[4];
+    int shm_offset = atoi(argv[5]);
+    char *overseer_addr = argv[6];
+    
+    return 0; // Return 0 to indicate successful execution
+}
 // Shared memory structure
 typedef struct {
     char status; // 'O' for open, 'C' for closed, 'o' for opening, 'c' for closing
