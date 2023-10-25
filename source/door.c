@@ -42,9 +42,9 @@ void init_door(char* id, char* address, char* mode, char* shm_path, int shm_offs
 }
 
 void *handle_connection(void *arg) {
-    int new_socket = *(int *)arg;
-    // Pseudo code for handling TCP connection based on the given logic
+    int *new_socket = (int *)arg; // Cast the argument correctly
 
+    // Pseudo code for handling TCP connection based on the given logic
     char message[256];
     // Read the message from the connection...
 
@@ -88,7 +88,7 @@ void *handle_connection(void *arg) {
         // Respond with CLOSED_SECURE#...
     }
 
-    close(new_socket);
+    close(*new_socket); // Close the socket
     return NULL;
 }
 

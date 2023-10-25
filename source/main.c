@@ -10,11 +10,12 @@ int main(int argC, char *argV[]){
         overseer(argC-2, &arg[2]);
     } */
 
+
     char *arg1[] = {"processName", "door", "127.0.0.1:3001", "FAIL_SAFE", "shm_path", "shm_offset", "127.0.0.1:300"};
     
-    if(strcmp(arg1[1], "door") == 0){
+    if (strcmp(argV[1], "door") == 0) { 
         door(5, &arg1[2]);
-        overseer(7, &arg[2]);
+        overseer(7, &argV[2]);
     }
 
     if(argV[1] == "door"){
