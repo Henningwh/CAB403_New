@@ -23,7 +23,7 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  // Stor all args from commandline to local variables
+  // Store all args from commandline to local variables
   int id = atoi(argv[1]);
   int waittime = atoi(argv[2]);
   const char *shm_path = argv[3];
