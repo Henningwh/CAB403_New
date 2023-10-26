@@ -1,20 +1,25 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <limits.h>
+#include "helper_functions.h"
 
-#include "shm_structs.h"
+ComponentType getTypeFromString(const char *str)
+{
+  if (strcmp(str, "overseer") == 0)
+    return TYPE_OVERSEER;
+  if (strcmp(str, "firealarm") == 0)
+    return TYPE_FIREALARM;
+  if (strcmp(str, "cardreader") == 0)
+    return TYPE_CARDREADER;
+  if (strcmp(str, "door") == 0)
+    return TYPE_DOOR;
+  if (strcmp(str, "callpoint") == 0)
+    return TYPE_CALLPOINT;
+  if (strcmp(str, "tempsensor") == 0)
+    return TYPE_TEMPSENSOR;
+  if (strcmp(str, "elevator") == 0)
+    return TYPE_ELEVATOR;
+  if (strcmp(str, "destselect") == 0)
+    return TYPE_DESTSELECT;
+  return TYPE_UNKNOWN;
+}
 
 void *open_shared_memory(const char *shm_path)
 {

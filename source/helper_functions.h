@@ -19,6 +19,22 @@
 
 #include "shm_structs.h"
 
+// Enumeration declaration
+typedef enum
+{
+  TYPE_OVERSEER,
+  TYPE_FIREALARM,
+  TYPE_CARDREADER,
+  TYPE_DOOR,
+  TYPE_CALLPOINT,
+  TYPE_TEMPSENSOR,
+  TYPE_ELEVATOR,
+  TYPE_DESTSELECT,
+  TYPE_UNKNOWN
+} ComponentType;
+
+// Function declarations
+ComponentType getTypeFromString(const char *str);
 void *open_shared_memory(const char *shm_path);
 int create_tcp_connection(const char *addr_port_str, int timeout);
 

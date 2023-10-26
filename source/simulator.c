@@ -1,54 +1,116 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "shm_structs.h"
 #include "dg_structs.h"
 #include "helper_functions.h"
 
-// Define shared memory structures for different components
+// To keep track of how many of each component we have spawned
 typedef struct
 {
-    // Define data for the overseer component
-    // ...
+    int overseer_count;
+    int firealarm_count;
+    int cardreader_count;
+    int door_count;
+    int callpoint_count;
+    int tempsensor_count;
+    int elevator_count;
+    int destselect_count;
+} instance_counters;
 
-    pthread_mutex_t overseer_mutex;
-    pthread_cond_t overseer_cond;
-} OverseerData;
+instance_counters counters = {0}; // Set them all to 0 as default
 
-// Define data for other components (fire alarm, card reader, etc.)
-// ...
-
-// Initialize shared memory and mutexes
-void initializeSharedMemory()
+// The maximum size the shared memory can be
+typedef struct
 {
-    shm_overseer *overseer = (shm_overseer *)open_shared_memory("/overseer");
-    // Initialize mutexes and condition variables for overseer
-    pthread_mutex_init(&overseer->mutex, NULL);
-    pthread_cond_init(&overseer->cond, NULL);
-    
-    // Repeat for other components...
+    shm_overseer overseer;
+    shm_firealarm firealarm;
+    shm_cardreader cardreader[40];
+    shm_door door[20];
+    shm_callpoint callpoint[20];
+    shm_tempsensor tempsensor[20];
+    shm_elevator elevator[10];
+    shm_destselect destselect[20];
+} shm_master;
+
+// Paths to the different locations in the shared memory
+char *shmloc_overseer = "/shm_overseer";
+char *shmloc_firealarm = "/shm_firealarm";
+char *shmloc_cardreader = "/shm_cardreader";
+char *shmloc_door = "/shm_door";
+char *shmloc_callpoint = "/shm_callpoint";
+char *shmloc_tempsensor = "/shm_tempsensor";
+char *shmloc_elevator = "/shm_elevator";
+char *shmloc_destselect = "/shm_destselect";
+
+// Helper method to map the shared memory sections
+void *initialize_individual_shm(const char *name, size_t size)
+{
+    int fd = shm_open(name, O_CREAT | O_RDWR, 0666);
+    if (fd == -1)
+    {
+        perror("shm_open()");
+        exit(1);
+    }
+
+    if (ftruncate(fd, size) == -1)
+    {
+        perror("ftruncate()");
+        close(fd);
+        exit(1);
+    }
+
+    void *addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (addr == MAP_FAILED)
+    {
+        perror("mmap()");
+        close(fd);
+        exit(1);
+    }
+
+    memset(addr, 0, size); // Set all bytes to 0 -- good practice
+    close(fd);
+    return addr;
 }
 
-// Simulate an event for a specific component
-void simulateEvent(OverseerData *overseer, int componentID)
+// Method to initialize the shared memory
+void initializeSharedMemory()
 {
-    // Implement the logic for simulating different events
-    // You can use mutexes and condition variables to synchronize
-    // with the component's behavior.
-    // ...
+    // Master shared memory
+    shm_master *master = (shm_master *)initialize_individual_shm("/shm_master", sizeof(shm_master));
+
+    // Now map each struct in shm_master to shared memory and repeat for the max amount of instances there can be
+    master->overseer = *(shm_overseer *)initialize_individual_shm(shmloc_overseer, sizeof(shm_overseer));
+    master->firealarm = *(shm_firealarm *)initialize_individual_shm(shmloc_firealarm, sizeof(shm_firealarm));
+
+    for (int i = 0; i < 40; i++)
+        master->cardreader[i] = *(shm_cardreader *)initialize_individual_shm(shmloc_cardreader, sizeof(shm_cardreader));
+
+    for (int i = 0; i < 20; i++)
+    {
+        master->door[i] = *(shm_door *)initialize_individual_shm(shmloc_door, sizeof(shm_door));
+        master->callpoint[i] = *(shm_callpoint *)initialize_individual_shm(shmloc_callpoint, sizeof(shm_callpoint));
+        master->tempsensor[i] = *(shm_tempsensor *)initialize_individual_shm(shmloc_tempsensor, sizeof(shm_tempsensor));
+        master->destselect[i] = *(shm_destselect *)initialize_individual_shm(shmloc_destselect, sizeof(shm_destselect));
+    }
+    for (int i = 0; i < 10; i++)
+        master->elevator[i] = *(shm_elevator *)initialize_individual_shm(shmloc_elevator, sizeof(shm_elevator));
 }
 
 int main(int argc, char *argv[])
 {
+    // Check for correct amount of command line arguments
     if (argc != 2)
     {
         printf("Usage: %s <scenario_file>\n", argv[0]);
         return 1;
     }
 
+    // Open the file supplied in command line argument
     FILE *file = fopen(argv[1], "r");
     if (file == NULL)
     {
@@ -56,6 +118,7 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    // Read the file
     char line[1024];
     while (fgets(line, sizeof(line), file))
     {
@@ -66,14 +129,20 @@ int main(int argc, char *argv[])
         {
             if (strcmp(type, "cardreader") == 0)
             {
-                // {id} {wait time (in microseconds)} {shared memory path} {shared memory offset} {overseer address:port}
-                // !! Input from simulation is only {id} {wait time (in microseconds)}
-                int id, waittime, offset;
-                char path[32], adress_string[32];
-                sscanf(line, "%*s %*s %d %d %31s %d %31s", &id, &waittime, path, &offset, adress_string); // %*s reads and discards a string
-                printf("%s %d %d %s %d %s\n", type, id, waittime, path, offset, adress_string);           // print values read to console
-            } 
-            else if (strcmp(type, "door") == 0) 
+                int id, waittime = {0};
+                char path[32], offset[32] = {0};
+                char address_string[32] = {0};
+
+                int current_offset = counters.cardreader_count * sizeof(shm_cardreader);
+                counters.cardreader_count++;
+
+                snprintf(path, sizeof(path), "%s", shmloc_cardreader);
+                snprintf(offset, sizeof(offset), "%d", current_offset);
+
+                sscanf(line, "%*s %*s %d %d", &id, &waittime);
+                printf("%s %d %d %s %s %s\n", type, id, waittime, path, offset, address_string);
+            }
+            else if (strcmp(type, "door") == 0)
             {
                 // Code for initializing door
                 int id, waittime, offset;
