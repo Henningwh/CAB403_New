@@ -5,16 +5,10 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-
-// Structure for shared memory
-struct SharedMemory {
-    char scanned[16];
-    uint8_t floor_select;
-    pthread_mutex_t mutex;
-    pthread_cond_t scanned_cond;
-    char response;
-    pthread_cond_t response_cond;
-};
+#include <sys/mman.h>
+#include <fcntl.h>
+#include "shm_structs.h"
+#include "dg_structs.h"
 
 int main(int argc, char *argv[]) {
     if (argc != 6) {
@@ -29,8 +23,17 @@ int main(int argc, char *argv[]) {
     const char *overseer_addr_port = argv[5];
 
     // Attach to the shared memory segment
-    struct SharedMemory *shm;
-    // TODO: Attach to shared memory segment using shm_open, mmap, and shm_offset
+    shm_destselect *shm;
+    int shm_fd = shm_open(shm_path, O_RDWR, 0666);
+    if (shm_fd == -1) {
+        perror("shm_open");
+        exit(EXIT_FAILURE);
+    }
+    shm = mmap(0, sizeof(shm_destselect), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, shm_offset);
+    if (shm == MAP_FAILED) {
+        perror("mmap");
+        exit(EXIT_FAILURE);
+    }
 
     while (1) {
         // Lock the mutex
@@ -51,8 +54,20 @@ int main(int argc, char *argv[]) {
         pthread_mutex_unlock(&shm->mutex);
 
         // Open a TCP connection to the overseer
-        int socket_fd;
-        // TODO: Create a socket and connect to overseer_addr_port
+        int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (socket_fd == -1) {
+            perror("socket");
+            continue;
+        }
+
+        struct sockaddr_in overseer_addr;
+        // TODO: Parse overseer_addr_port to fill in overseer_addr
+
+        if (connect(socket_fd, (struct sockaddr*)&overseer_addr, sizeof(overseer_addr)) == -1) {
+            perror("connect");
+            close(socket_fd);
+            continue;
+        }
 
         // Send data to overseer
         char message[1024];
@@ -72,14 +87,14 @@ int main(int argc, char *argv[]) {
         close(socket_fd);
 
         // Process the response
+        pthread_mutex_lock(&shm->mutex);
         if (bytes_received > 0 && response == 'A') {
             shm->response = 'Y';
         } else {
             shm->response = 'N';
         }
-
-        // Signal response_cond
         pthread_cond_signal(&shm->response_cond);
+        pthread_mutex_unlock(&shm->mutex);
     }
 
     return 0;
