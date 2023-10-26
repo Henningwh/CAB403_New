@@ -4,6 +4,10 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include "shm_structs.h"
+#include "dg_structs.h"
+#include "helper_functions.h"
+
 // Define shared memory structures for different components
 typedef struct
 {
@@ -20,9 +24,12 @@ typedef struct
 // Initialize shared memory and mutexes
 void initializeSharedMemory()
 {
-    // Initialize shared memory for each component
-    // Initialize mutexes and condition variables
-    // ...
+    shm_overseer *overseer = (shm_overseer *)open_shared_memory("/overseer");
+    // Initialize mutexes and condition variables for overseer
+    pthread_mutex_init(&overseer->mutex, NULL);
+    pthread_cond_init(&overseer->cond, NULL);
+    
+    // Repeat for other components...
 }
 
 // Simulate an event for a specific component
@@ -65,8 +72,15 @@ int main(int argc, char *argv[])
                 char path[32], adress_string[32];
                 sscanf(line, "%*s %*s %d %d %31s %d %31s", &id, &waittime, path, &offset, adress_string); // %*s reads and discards a string
                 printf("%s %d %d %s %d %s\n", type, id, waittime, path, offset, adress_string);           // print values read to console
+            } 
+            else if (strcmp(type, "door") == 0) 
+            {
+                // Code for initializing door
+                int id, waittime, offset;
+                char path[32], address_string[32];
+                sscanf(line, "%*s %*s %d %d %31s %d %31s", &id, &waittime, path, &offset, address_string);
+                printf("Door: %d %d %s %d %s\n", id, waittime, path, offset, address_string);
             }
-            // Other types can be added here, similar to the above check
             // For example:
             // else if (strcmp(type, "door") == 0) { ... }
             // else if (strcmp(type, "overseer") == 0) { ... }
