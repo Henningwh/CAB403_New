@@ -25,6 +25,12 @@ callpoint.o: callpoint.c
 callpoint: callpoint.o helper_functions.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
+# Compile elevator
+elevator.o: elevator.c
+	$(CC) -c $< $(CFLAGS)
+elevator: elevator.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+
 all: $(ALL_COMPONENTS)
 
 clean:
