@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
                 int id, waittime, offset;
                 char path[32], adress_string[32];
                 sscanf(line, "%*s %*s %d %d %31s %d %31s", &id, &waittime, path, &offset, adress_string); // %*s reads and discards a string
-                printf("%d %d %s %d %s\n", id, waittime, path, offset, adress_string);                    // print values read to console
+                printf("%s %d %d %s %d %s\n", type, id, waittime, path, offset, adress_string);           // print values read to console
             }
             // Other types can be added here, similar to the above check
             // For example:
