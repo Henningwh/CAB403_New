@@ -21,7 +21,7 @@ int main(int argc, char **argv)
   // Check for correct amount of command line args
   if (argc < 8)
   {
-    fprintf(stderr, "Insufficient arguments provided\n");
+    fprintf(stderr, "Usage: {id} {address:port} {max condvar wait (microseconds)} {max update wait (microseconds)} {shared memory path} {shared memory offset} {receiver address:port} ...\n");
     exit(1);
   }
 
@@ -40,8 +40,11 @@ int main(int argc, char **argv)
     receivers[i] = argv[i + 7];
   }
 
-  // Shared memory setup and set up a UDP socket
-  shm_tempsensor *shm = (shm_tempsensor *)(open_shared_memory(shm_path) + shm_offset);
+  // Shared memory setup
+  char *shm = open_shared_memory(shm_path);
+  shm_tempsensor *shm_ts = (shm_tempsensor *)(open_shared_memory(shm) + shm_offset);
+
+  // and UDP socket setup
   struct sockaddr_in local_addr;
   int local_socket = socket(AF_INET, SOCK_DGRAM, 0);
   if (local_socket == -1)
@@ -58,9 +61,9 @@ int main(int argc, char **argv)
   while (1)
   {
     // Read temp
-    pthread_mutex_lock(&shm->mutex);
-    float current_temperature = shm->temperature;
-    pthread_mutex_unlock(&shm->mutex);
+    pthread_mutex_lock(&shm_ts->mutex);
+    float current_temperature = shm_ts->temperature;
+    pthread_mutex_unlock(&shm_ts->mutex);
 
     // Distribute the temp to all recievers specified in the command line args
     for (int i = 0; i < num_receivers; i++)
@@ -84,7 +87,7 @@ int main(int argc, char **argv)
     struct timespec wait_time;
     clock_gettime(CLOCK_REALTIME, &wait_time);
     wait_time.tv_nsec += max_condvar_wait;
-    pthread_cond_timedwait(&shm->cond, &shm->mutex, &wait_time);
+    pthread_cond_timedwait(&shm_ts->cond, &shm_ts->mutex, &wait_time);
   }
 
   return 0;
