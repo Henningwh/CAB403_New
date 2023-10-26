@@ -60,10 +60,11 @@ int main(int argc, char *argv[])
             if (strcmp(type, "cardreader") == 0)
             {
                 // {id} {wait time (in microseconds)} {shared memory path} {shared memory offset} {overseer address:port}
+                // !! Input from simulation is only {id} {wait time (in microseconds)}
                 int id, waittime, offset;
-                char path, adress_string;
-                sscanf(line, "%*s %*s %d %d %s %d %s", &id, &waittime, &path, &offset, &adress_string); // %*s reads and discards a string
-                initiateCardreader(id, waittime, path, offset, adress_string);
+                char path[32], adress_string[32];
+                sscanf(line, "%*s %*s %d %d %31s %d %31s", &id, &waittime, path, &offset, adress_string); // %*s reads and discards a string
+                printf("%d %d %s %d %s\n", id, waittime, path, offset, adress_string);                    // print values read to console
             }
             // Other types can be added here, similar to the above check
             // For example:
