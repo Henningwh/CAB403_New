@@ -1,7 +1,8 @@
 CC = gcc
 CFLAGS = -Wall
 LDFLAGS = -pthread
-ALL_COMPONENTS = overseer simulator firealarm cardreader door callpoint tempsensor elevator destselect
+# All comps minus overseer. Yet to be implemented
+ALL_COMPONENTS = simulator firealarm cardreader door callpoint tempsensor elevator destselect
 
 # Compile helper functions
 helper_functions.o: helper_functions.c helper_functions.h
@@ -23,6 +24,12 @@ cardreader: cardreader.o helper_functions.o
 callpoint.o: callpoint.c
 	$(CC) -c $< $(CFLAGS)
 callpoint: callpoint.o helper_functions.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# Compile tempsensor
+tempsensor.o: tempsensor.c
+	$(CC) -c $< $(CFLAGS)
+tempsensor: tempsensor.o helper_functions.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile elevator
