@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "helper_functions.c"
+#include "helper_functions.h"
 #include "shm_structs.h"
 #include "dg_structs.h"
 
@@ -26,10 +26,10 @@ int main(int argc, char **argv)
   }
 
   // Extract command line parameters
-  int id = atoi(argv[1]);
+  // int id = atoi(argv[1]);
   char *local_address_port = argv[2];
   int max_condvar_wait = atoi(argv[3]);
-  int max_update_wait = atoi(argv[4]);
+  // int max_update_wait = atoi(argv[4]);
   char *shm_path = argv[5];
   int shm_offset = atoi(argv[6]);
 
@@ -46,8 +46,8 @@ int main(int argc, char **argv)
 
   // and UDP socket setup
   struct sockaddr_in local_addr;
-  int local_socket = socket(AF_INET, SOCK_DGRAM, 0);
-  if (local_socket == -1)
+  int udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+  if (udp_socket == -1)
   {
     perror("socket()");
     exit(1);
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
   local_addr.sin_family = AF_INET;
   local_addr.sin_port = htons(atoi(local_address_port));
   local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  bind(local_socket, (struct sockaddr *)&local_addr, sizeof(local_addr));
+  bind(udp_socket, (struct sockaddr *)&local_addr, sizeof(local_addr));
 
   while (1)
   {
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
       }
       dest_addr.sin_port = htons(port);
       inet_pton(AF_INET, address, &dest_addr.sin_addr);
-      sendto(local_socket, &current_temperature, sizeof(current_temperature), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+      sendto(udp_socket, &current_temperature, sizeof(current_temperature), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
     }
 
     // Wait before restarting the loop
