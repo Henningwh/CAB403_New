@@ -93,4 +93,58 @@ typedef struct
   pthread_cond_t cond;
 } shm_camera;
 
+/* ====================
+Structs for overseer
+==================== */
+
+typedef struct
+{
+  int overseer_count;
+  int firealarm_count;
+  int cardreader_count;
+  int door_count;
+  int callpoint_count;
+  int tempsensor_count;
+  int elevator_count;
+  int destselect_count;
+} instance_counters;
+
+typedef struct
+{
+  pid_t overseer;
+  pid_t firealarm;
+  pid_t cardreader[40];
+  pid_t door[20];
+  pid_t callpoint[20];
+  pid_t tempsensor[20];
+  pid_t elevator[10];
+  pid_t destselect[20];
+} ProcessPIDs;
+
+typedef struct
+{
+  shm_overseer overseer;
+  shm_firealarm firealarm;
+  shm_cardreader cardreader[40];
+  shm_door door[20];
+  shm_callpoint callpoint[20];
+  shm_tempsensor tempsensor[20];
+  shm_elevator elevator[10];
+  shm_destselect destselect[20];
+  shm_camera camera[20];
+} shm_master;
+
+typedef struct
+{
+  void *base;
+  shm_overseer *pOverseer;
+  shm_firealarm *pFirealarm;
+  shm_cardreader *pCardreader;
+  shm_door *pDoor;
+  shm_callpoint *pCallpoint;
+  shm_tempsensor *pTempsensor;
+  shm_elevator *pElevator;
+  shm_destselect *pDestselect;
+} ShmPointers;
+
 #endif

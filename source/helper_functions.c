@@ -1,26 +1,5 @@
 #include "helper_functions.h"
 
-ComponentType getTypeFromString(const char *str)
-{
-  if (strcmp(str, "overseer") == 0)
-    return TYPE_OVERSEER;
-  if (strcmp(str, "firealarm") == 0)
-    return TYPE_FIREALARM;
-  if (strcmp(str, "cardreader") == 0)
-    return TYPE_CARDREADER;
-  if (strcmp(str, "door") == 0)
-    return TYPE_DOOR;
-  if (strcmp(str, "callpoint") == 0)
-    return TYPE_CALLPOINT;
-  if (strcmp(str, "tempsensor") == 0)
-    return TYPE_TEMPSENSOR;
-  if (strcmp(str, "elevator") == 0)
-    return TYPE_ELEVATOR;
-  if (strcmp(str, "destselect") == 0)
-    return TYPE_DESTSELECT;
-  return TYPE_UNKNOWN;
-}
-
 void *open_shared_memory(const char *shm_path)
 {
   // From intro video on Canvas
@@ -100,4 +79,78 @@ int create_tcp_connection(const char *full_address, int timeout)
   }
 
   return fd;
+}
+
+size_t calculateTotalShmSize()
+{
+  return sizeof(shm_overseer) + sizeof(shm_firealarm) + (sizeof(shm_cardreader) * 40) +
+         (sizeof(shm_door) * 20) + (sizeof(shm_callpoint) * 20) + (sizeof(shm_tempsensor) * 20) +
+         (sizeof(shm_elevator) * 10) + (sizeof(shm_destselect) * 20) + (sizeof(shm_camera) * 20);
+}
+
+ShmPointers initializeSharedMemory()
+{
+  ShmPointers pointers;
+  size_t offset = 0;
+
+  // Initialize shared memory space
+  int fd = shm_open("/shm", O_CREAT | O_RDWR, 0);
+  if (fd == -1)
+  {
+    perror("Error: An error occurred in shm_open()");
+    exit(1);
+  }
+
+  size_t size = calculateTotalShmSize();
+  printf("Total shared memory size: %zu bytes (Should be 54592)\n", size);
+  if (ftruncate(fd, size) == -1)
+  {
+    perror("Error: An error occurred in ftruncate()");
+    close(fd);
+    exit(1);
+  }
+
+  void *master = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (master == MAP_FAILED)
+  {
+    perror("Error: An error occurred in mmap()");
+    close(fd);
+    exit(1);
+  }
+  memset(master, 0, size);
+  close(fd);
+
+  // Base
+  pointers.base = master;
+
+  // Overseer
+  pointers.pOverseer = (shm_overseer *)((char *)master + offset);
+  // Firealarm
+  offset += sizeof(shm_overseer);
+  pointers.pFirealarm = (shm_firealarm *)((char *)master + offset);
+  // Cardreader
+  offset += sizeof(shm_firealarm);
+  pointers.pCardreader = (shm_cardreader *)((char *)master + offset);
+  // Door
+  offset += sizeof(shm_cardreader) * 40;
+  pointers.pDoor = (shm_door *)((char *)master + offset);
+  // Callpoint
+  offset += sizeof(shm_door) * 20;
+  pointers.pCallpoint = (shm_callpoint *)((char *)master + offset);
+  // Tempsensor
+  offset += sizeof(shm_callpoint) * 20;
+  pointers.pTempsensor = (shm_tempsensor *)((char *)master + offset);
+  // Elevator
+  offset += sizeof(shm_tempsensor) * 20;
+  pointers.pElevator = (shm_elevator *)((char *)master + offset);
+  // Destselect
+  offset += sizeof(shm_elevator) * 10;
+  pointers.pDestselect = (shm_destselect *)((char *)master + offset);
+
+  return pointers;
+}
+
+void cleanupSharedMemory()
+{
+  shm_unlink("/shm");
 }
