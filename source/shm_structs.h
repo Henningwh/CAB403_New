@@ -82,4 +82,15 @@ typedef struct
   pthread_cond_t response_cond;
 } shm_destselect;
 
+typedef struct
+{
+  uint16_t current_angle;
+  uint16_t min_angle;
+  uint16_t max_angle;
+  char status; // 'L' for turning left, 'R' for turning right, 'O' for on (and stationary), '-' for off
+  uint8_t video[36][48];
+  pthread_mutex_t mutex;
+  pthread_cond_t cond;
+} shm_camera;
+
 #endif
