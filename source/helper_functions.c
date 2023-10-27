@@ -154,3 +154,80 @@ void cleanupSharedMemory()
 {
   shm_unlink("/shm");
 }
+
+pid_t spawn_process(const char *process_path, char *const argv[])
+{
+  pid_t processPID = fork();
+
+  if (processPID == 0)
+  {
+    // Child process
+    usleep(250000);
+    execv(process_path, argv);
+    // If execv() fails:
+    perror("Error: execv() failed to launch process");
+    exit(1);
+  }
+  else if (processPID < 0)
+  {
+    perror("Error: fork() failed");
+    exit(1);
+  }
+  // Parent process continues here:
+  return processPID;
+}
+
+void terminate_all_processes(ProcessPIDs *pids)
+{
+  int i;
+
+  if (pids->overseer)
+  {
+    printf("Killing process: %d\n", pids->overseer);
+    kill(pids->overseer, SIGTERM);
+  }
+  if (pids->firealarm)
+  {
+    printf("Killing process: %d\n", pids->firealarm);
+    kill(pids->firealarm, SIGTERM);
+  }
+  for (i = 0; i < 40; i++)
+  {
+    if (pids->cardreader[i])
+    {
+      printf("Killing process: %d\n", pids->cardreader[i]);
+      kill(pids->cardreader[i], SIGTERM);
+    }
+  }
+  for (i = 0; i < 20; i++)
+  {
+    if (pids->door[i])
+    {
+      printf("Killing process: %d\n", pids->door[i]);
+      kill(pids->door[i], SIGTERM);
+    }
+    if (pids->callpoint[i])
+    {
+      printf("Killing process: %d\n", pids->callpoint[i]);
+      kill(pids->callpoint[i], SIGTERM);
+    }
+    if (pids->tempsensor[i])
+    {
+      printf("Killing process: %d\n", pids->tempsensor[i]);
+      kill(pids->tempsensor[i], SIGTERM);
+    }
+    if (pids->destselect[i])
+    {
+      printf("Killing process: %d\n", pids->destselect[i]);
+      kill(pids->destselect[i], SIGTERM);
+    }
+  }
+  for (i = 0; i < 10; i++)
+  {
+    if (pids->elevator[i])
+    {
+      printf("Killing process: %d\n", pids->elevator[i]);
+      kill(pids->elevator[i], SIGTERM);
+    }
+  }
+}
