@@ -122,16 +122,16 @@ typedef struct
 } ProcessPIDs;
 
 typedef struct
-{
-  shm_overseer overseer;
-  shm_firealarm firealarm;
-  shm_cardreader cardreader[40];
-  shm_door door[20];
-  shm_callpoint callpoint[20];
-  shm_tempsensor tempsensor[20];
-  shm_elevator elevator[10];
-  shm_destselect destselect[20];
-  shm_camera camera[20];
+{                                // port offset
+  shm_overseer overseer;         // 0
+  shm_firealarm firealarm;       // 100
+  shm_cardreader cardreader[40]; // 200
+  shm_door door[20];             // 300
+  shm_callpoint callpoint[20];   // 400
+  shm_tempsensor tempsensor[20]; // 500
+  shm_elevator elevator[10];     // 600
+  shm_destselect destselect[20]; // 700
+  shm_camera camera[20];         // 800
 } shm_master;
 
 typedef struct
