@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 #include "shm_structs.h"
 #include "dg_structs.h"
@@ -26,8 +27,20 @@ typedef struct
     int elevator_count;
     int destselect_count;
 } instance_counters;
-
 instance_counters counters = {0}; // Set them all to 0 as default
+
+typedef struct
+{
+    pid_t overseer;
+    pid_t firealarm;
+    pid_t cardreader[40];
+    pid_t door[20];
+    pid_t callpoint[20];
+    pid_t tempsensor[20];
+    pid_t elevator[10];
+    pid_t destselect[20];
+} ProcessPIDs;
+ProcessPIDs processPIDs = {0}; // Initialize all PIDs to 0
 
 // The maximum size the shared memory can be
 typedef struct
@@ -130,6 +143,83 @@ void cleanupSharedMemory()
     shm_unlink("/shm");
 }
 
+pid_t spawn_process(const char *process_path, char *const argv[])
+{
+    pid_t processPID = fork();
+
+    if (processPID == 0)
+    {
+        // Child process
+        usleep(250000);
+        execv(process_path, argv);
+        // If execv() fails:
+        perror("Error: execv() failed to launch process");
+        exit(1);
+    }
+    else if (processPID < 0)
+    {
+        perror("Error: fork() failed");
+        exit(1);
+    }
+    // Parent process continues here:
+    return processPID;
+}
+
+void terminate_all_processes(ProcessPIDs *pids)
+{
+    int i;
+
+    if (pids->overseer)
+    {
+        printf("Killing process: %d\n", pids->overseer);
+        kill(pids->overseer, SIGTERM);
+    }
+    if (pids->firealarm)
+    {
+        printf("Killing process: %d\n", pids->firealarm);
+        kill(pids->firealarm, SIGTERM);
+    }
+    for (i = 0; i < 40; i++)
+    {
+        if (pids->cardreader[i])
+        {
+            printf("Killing process: %d\n", pids->cardreader[i]);
+            kill(pids->cardreader[i], SIGTERM);
+        }
+    }
+    for (i = 0; i < 20; i++)
+    {
+        if (pids->door[i])
+        {
+            printf("Killing process: %d\n", pids->door[i]);
+            kill(pids->door[i], SIGTERM);
+        }
+        if (pids->callpoint[i])
+        {
+            printf("Killing process: %d\n", pids->callpoint[i]);
+            kill(pids->callpoint[i], SIGTERM);
+        }
+        if (pids->tempsensor[i])
+        {
+            printf("Killing process: %d\n", pids->tempsensor[i]);
+            kill(pids->tempsensor[i], SIGTERM);
+        }
+        if (pids->destselect[i])
+        {
+            printf("Killing process: %d\n", pids->destselect[i]);
+            kill(pids->destselect[i], SIGTERM);
+        }
+    }
+    for (i = 0; i < 10; i++)
+    {
+        if (pids->elevator[i])
+        {
+            printf("Killing process: %d\n", pids->elevator[i]);
+            kill(pids->elevator[i], SIGTERM);
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     // Check for correct amount of command line arguments
@@ -162,72 +252,110 @@ int main(int argc, char *argv[])
         {
             if (strcmp(type, "overseer") == 0)
             {
-                int door_open_duration, datagram_resend_delay;
-                char authorisation_file[64], connections_file[64], layout_file[64];
+                char door_open_duration_str[20], datagram_resend_delay_str[20], authorisation_file[64], connections_file[64], layout_file[64];
 
-                sscanf(line, "%*s %*s %d %d %63s %63s %63s", &door_open_duration, &datagram_resend_delay, authorisation_file, connections_file, layout_file);
+                sscanf(line, "%*s %*s %19s %19s %63s %63s %63s", door_open_duration_str, datagram_resend_delay_str, authorisation_file, connections_file, layout_file);
 
-                int base_offset_for_overseer = (char *)shmPointers.pOverseer - (char *)shmPointers.base;
-
-                int current_offset = base_offset_for_overseer;
+                char current_offset_str[20];
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pOverseer - (char *)shmPointers.base));
 
                 char address_with_port[64];
                 snprintf(address_with_port, sizeof(address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
 
-                printf("%s %s %d %d %s %s %s %s %d\n", type, address_with_port, door_open_duration, datagram_resend_delay, authorisation_file, connections_file, layout_file, SHM_PATH, current_offset);
+                printf("%s %s %s %s %s %s %s %s %s\n", type, address_with_port, door_open_duration_str, datagram_resend_delay_str, authorisation_file, connections_file, layout_file, SHM_PATH, current_offset_str);
+
+                char *args[] = {
+                    type,
+                    address_with_port,
+                    door_open_duration_str,
+                    datagram_resend_delay_str,
+                    authorisation_file,
+                    connections_file,
+                    layout_file,
+                    SHM_PATH,
+                    current_offset_str,
+                    NULL};
+                processPIDs.overseer = spawn_process("./overseer", args);
+                counters.overseer_count++;
             }
             if (strcmp(type, "firealarm") == 0)
             {
-                int temperature_threshold, min_detections, detection_period, reserved_arg;
-                sscanf(line, "%*s %*s %d %d %d %d", &temperature_threshold, &min_detections, &detection_period, &reserved_arg);
+                char temperature_threshold_str[20], min_detections_str[20], detection_period_str[20], reserved_arg_str[20];
+                sscanf(line, "%*s %*s %19s %19s %19s %19s", temperature_threshold_str, min_detections_str, detection_period_str, reserved_arg_str);
 
-                int base_offset_for_firealarm = (char *)shmPointers.pFirealarm - (char *)shmPointers.base;
-                int current_offset = base_offset_for_firealarm + (counters.firealarm_count * sizeof(shm_firealarm));
-                counters.firealarm_count++;
+                char current_offset_str[20];
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pFirealarm - (char *)shmPointers.base + (counters.firealarm_count * sizeof(shm_firealarm))));
 
-                int local_port = 1234;
                 char address_with_local_port[64];
-                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, local_port);
+                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, 1234);
 
                 char overseer_address_with_port[64];
                 snprintf(overseer_address_with_port, sizeof(overseer_address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
 
-                printf("%s %s %d %d %d %s %s %d %s\n", type, address_with_local_port, temperature_threshold, min_detections, detection_period, "reserved", SHM_PATH, current_offset, overseer_address_with_port);
+                printf("%s %s %s %s %s %s %s %s %s\n", type, address_with_local_port, temperature_threshold_str, min_detections_str, detection_period_str, "reserved", SHM_PATH, current_offset_str, overseer_address_with_port);
+
+                char *args[] = {
+                    type,
+                    address_with_local_port,
+                    temperature_threshold_str,
+                    min_detections_str,
+                    detection_period_str,
+                    "reserved",
+                    SHM_PATH,
+                    current_offset_str,
+                    overseer_address_with_port,
+                    NULL};
+                processPIDs.firealarm = spawn_process("./firealarm", args);
+                counters.firealarm_count++;
             }
             else if (strcmp(type, "cardreader") == 0)
             {
-                int id, waittime;
-                sscanf(line, "%*s %*s %d %d", &id, &waittime);
+                char id_str[20], waittime_str[20];
+                sscanf(line, "%*s %*s %19s %19s", id_str, waittime_str);
 
-                int base_offset_for_cardreader = (char *)shmPointers.pCardreader - (char *)shmPointers.base;
-                int current_offset = base_offset_for_cardreader + (counters.cardreader_count * sizeof(shm_cardreader));
-                counters.cardreader_count++;
+                char current_offset_str[20];
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pCardreader - (char *)shmPointers.base + (counters.cardreader_count * sizeof(shm_cardreader))));
 
                 char address_with_port[64];
                 snprintf(address_with_port, sizeof(address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
 
-                printf("%s %d %d %s %d %s\n", type, id, waittime, SHM_PATH, current_offset, address_with_port);
+                printf("%s %s %s %s %s %s\n", type, id_str, waittime_str, SHM_PATH, current_offset_str, address_with_port);
+
+                char *args[] = {
+                    type,
+                    id_str,
+                    waittime_str,
+                    SHM_PATH,
+                    current_offset_str,
+                    address_with_port,
+                    NULL};
+                processPIDs.cardreader[counters.cardreader_count] = spawn_process("./cardreader", args);
+                counters.cardreader_count++;
             }
             else if (strcmp(type, "door") == 0)
             {
-                int id;
-                char fail_mode[12]; // Enough to store "FAIL_SAFE" or "FAIL_SECURE"
+                char id_str[20], fail_mode[12], current_offset_str[20], address_with_local_port[64], overseer_address_with_port[64];
+                sscanf(line, "%*s %*s %19s %11s", id_str, fail_mode);
 
-                sscanf(line, "%*s %*s %d %s", &id, fail_mode);
-
-                int base_offset_for_door = (char *)shmPointers.pDoor - (char *)shmPointers.base;
-                int current_offset = base_offset_for_door + (counters.door_count * sizeof(shm_door));
-                counters.door_count++;
-
-                int local_port = 4321;
-                char address_with_local_port[64];
-                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, local_port);
-
-                char overseer_address_with_port[64];
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pDoor - (char *)shmPointers.base + (counters.door_count * sizeof(shm_door))));
+                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, 4321);
                 snprintf(overseer_address_with_port, sizeof(overseer_address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
 
-                printf("%s %d %s %s %s %d %s\n", type, id, address_with_local_port, fail_mode, SHM_PATH, current_offset, overseer_address_with_port);
+                printf("%s %s %s %s %s %s %s\n", type, id_str, address_with_local_port, fail_mode, SHM_PATH, current_offset_str, overseer_address_with_port);
+
+                char *args[] = {
+                    type,
+                    id_str,
+                    address_with_local_port,
+                    fail_mode,
+                    SHM_PATH,
+                    current_offset_str,
+                    overseer_address_with_port,
+                    NULL};
+                processPIDs.door[counters.door_count] = spawn_process("./door", args);
+                counters.door_count++;
             }
+
             else if (strcmp(type, "callpoint") == 0)
             {
                 // Couldnt find where this were called in the scenario files.. ?
@@ -235,65 +363,81 @@ int main(int argc, char *argv[])
             }
             else if (strcmp(type, "tempsensor") == 0)
             {
-                int id, condvar_wait, update_wait;
-                char sensors_data[256]; // To capture remaining data (like S0, S1, S2, etc.)
+                char id_str[20], condvar_wait_str[20], update_wait_str[20], sensors_data[256], current_offset_str[20], address_with_local_port[64];
+                sscanf(line, "%*s %*s %19s %19s %19s %[^\n]", id_str, condvar_wait_str, update_wait_str, sensors_data);
 
-                sscanf(line, "%*s %*s %d %d %d %[^\n]", &id, &condvar_wait, &update_wait, sensors_data);
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pTempsensor - (char *)shmPointers.base + (counters.tempsensor_count * sizeof(shm_tempsensor))));
+                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, 7272);
 
-                int base_offset_for_tempsensor = (char *)shmPointers.pTempsensor - (char *)shmPointers.base;
-                int current_offset = base_offset_for_tempsensor + (counters.tempsensor_count * sizeof(shm_tempsensor));
+                printf("%s %s %s %s %s %s %s %s\n", type, id_str, address_with_local_port, condvar_wait_str, update_wait_str, SHM_PATH, current_offset_str, sensors_data);
+
+                char *args[] = {
+                    type,
+                    id_str,
+                    address_with_local_port,
+                    condvar_wait_str,
+                    update_wait_str,
+                    SHM_PATH,
+                    current_offset_str,
+                    sensors_data,
+                    NULL};
+                processPIDs.tempsensor[counters.tempsensor_count] = spawn_process("./tempsensor", args);
                 counters.tempsensor_count++;
-
-                int local_port = 7272;
-                char address_with_local_port[64];
-                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, local_port);
-
-                printf("%s %d %s %d %d %s %d %s\n", type, id, address_with_local_port, condvar_wait, update_wait, SHM_PATH, current_offset, sensors_data);
             }
             else if (strcmp(type, "elevator") == 0)
             {
-                int id, waittime, open_time;
-                sscanf(line, "%*s %*s %d %d %d", &id, &waittime, &open_time);
+                char id_str[20], waittime_str[20], open_time_str[20], current_offset_str[20], address_with_local_port[64], overseer_address_with_port[64];
+                sscanf(line, "%*s %*s %19s %19s %19s", id_str, waittime_str, open_time_str);
 
-                int base_offset_for_elevator = (char *)shmPointers.pElevator - (char *)shmPointers.base;
-                int current_offset = base_offset_for_elevator + (counters.elevator_count * sizeof(shm_elevator));
-                counters.elevator_count++;
-
-                int local_port = 6666;
-                char address_with_local_port[64];
-                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, local_port);
-
-                char overseer_address_with_port[64];
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pElevator - (char *)shmPointers.base + (counters.elevator_count * sizeof(shm_elevator))));
+                snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, 6666);
                 snprintf(overseer_address_with_port, sizeof(overseer_address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
 
-                printf("%s %d %s %d %d %s %d %s\n", type, id, address_with_local_port, waittime, open_time, SHM_PATH, current_offset, overseer_address_with_port);
+                printf("%s %s %s %s %s %s %s %s\n", type, id_str, address_with_local_port, waittime_str, open_time_str, SHM_PATH, current_offset_str, overseer_address_with_port);
+
+                char *args[] = {
+                    type,
+                    id_str,
+                    address_with_local_port,
+                    waittime_str,
+                    open_time_str,
+                    SHM_PATH,
+                    current_offset_str,
+                    overseer_address_with_port,
+                    NULL};
+                processPIDs.elevator[counters.elevator_count] = spawn_process("./elevator", args);
+                counters.elevator_count++;
             }
             else if (strcmp(type, "destselect") == 0)
             {
-                int id, waittime;
-                sscanf(line, "%*s %*s %d %d", &id, &waittime);
+                char id_str[20], waittime_str[20], current_offset_str[20], overseer_address_with_port[64];
+                sscanf(line, "%*s %*s %19s %19s", id_str, waittime_str);
 
-                int base_offset_for_destselect = (char *)shmPointers.pDestselect - (char *)shmPointers.base;
-                int current_offset = base_offset_for_destselect + (counters.destselect_count * sizeof(shm_destselect));
-                counters.destselect_count++;
-
-                char overseer_address_with_port[64];
+                sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pDestselect - (char *)shmPointers.base + (counters.destselect_count * sizeof(shm_destselect))));
                 snprintf(overseer_address_with_port, sizeof(overseer_address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
 
-                printf("%s %d %d %s %d %s\n", type, id, waittime, SHM_PATH, current_offset, overseer_address_with_port);
+                printf("%s %s %s %s %s %s\n", type, id_str, waittime_str, SHM_PATH, current_offset_str, overseer_address_with_port);
+
+                char *args[] = {
+                    type,
+                    id_str,
+                    waittime_str,
+                    SHM_PATH,
+                    current_offset_str,
+                    overseer_address_with_port,
+                    NULL};
+                processPIDs.destselect[counters.destselect_count] = spawn_process("./destselect", args);
+                counters.destselect_count++;
             }
         }
     }
 
-    // Start the overseer component in the foreground
-    // ...
-
     // Simulate events based on the scenario
     // ...
 
-    // Terminate processes and release shared memory
+    // Terminate processes, release shared memory and close the file
+    terminate_all_processes(&processPIDs);
     cleanupSharedMemory();
-
     fclose(file);
     return 0;
 }
