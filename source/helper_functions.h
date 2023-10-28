@@ -24,5 +24,14 @@ ShmPointers initializeSharedMemory();
 void cleanupSharedMemory();
 pid_t spawn_process(const char *process_path, char *const argv[]);
 void terminate_all_processes(ProcessPIDs *pids);
+// Init methods
+void initialize_overseer(int current_offset, ShmPointers shmPointers);
+void initialize_firealarm(int current_offset, ShmPointers shmPointers);
+void initialize_cardreader(int current_offset, ShmPointers shmPointers);
+void initialize_door(int current_offset, ShmPointers shmPointers);
+void initialize_callpoint(int current_offset, ShmPointers shmPointers);
+void initialize_tempsensor(int current_offset, ShmPointers shmPointers);
+void initialize_elevator(int current_offset, ShmPointers shmPointers, char starting_floor);
+void initialize_destselect(int current_offset, ShmPointers shmPointers);
 
 #endif

@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
                     SHM_PATH,
                     current_offset_str,
                     NULL};
+                initialize_overseer(atoi(current_offset_str), shmPointers);
                 processPIDs.overseer = spawn_process("./overseer", args);
                 counters.overseer_count++;
             }
@@ -103,6 +104,7 @@ int main(int argc, char *argv[])
                     current_offset_str,
                     overseer_address_with_port,
                     NULL};
+                initialize_firealarm(atoi(current_offset_str), shmPointers);
                 processPIDs.firealarm = spawn_process("./firealarm", args);
                 counters.firealarm_count++;
             }
@@ -125,6 +127,7 @@ int main(int argc, char *argv[])
                     current_offset_str,
                     address_with_port,
                     NULL};
+                initialize_cardreader(atoi(current_offset_str), shmPointers);
                 processPIDs.cardreader[counters.cardreader_count] = spawn_process("./cardreader", args);
                 counters.cardreader_count++;
             }
@@ -150,6 +153,7 @@ int main(int argc, char *argv[])
                     current_offset_str,
                     overseer_address_with_port,
                     NULL};
+                initialize_door(atoi(current_offset_str), shmPointers);
                 processPIDs.door[counters.door_count] = spawn_process("./door", args);
                 counters.door_count++;
             }
@@ -184,16 +188,17 @@ int main(int argc, char *argv[])
                     current_offset_str,
                     sensors_data,
                     NULL};
+                initialize_tempsensor(atoi(current_offset_str), shmPointers);
                 processPIDs.tempsensor[counters.tempsensor_count] = spawn_process("./tempsensor", args);
                 counters.tempsensor_count++;
             }
             // {id} {address:port} {wait time (in microseconds)} {door open time (in microseconds)} {shared memory path} {shared memory offset} {overseer address:port}
             else if (strcmp(type, "elevator") == 0)
             {
-                char id_str[20], waittime_str[20], open_time_str[20], current_offset_str[20], address_with_local_port[64], overseer_address_with_port[64];
+                char id_str[20], waittime_str[20], open_time_str[20], current_offset_str[20], address_with_local_port[64], overseer_address_with_port[64], starting_floor[20];
                 int local_port_offset = 600;
 
-                sscanf(line, "%*s %*s %19s %19s %19s", id_str, waittime_str, open_time_str);
+                sscanf(line, "%*s %*s %19s %19s %19s %*s %19s", id_str, waittime_str, open_time_str, starting_floor);
                 sprintf(current_offset_str, "%d", (int)((char *)shmPointers.pElevator - (char *)shmPointers.base + (counters.elevator_count * sizeof(shm_elevator))));
                 snprintf(address_with_local_port, sizeof(address_with_local_port), "%s:%d", BASE_ADDRESS, BASE_PORT + local_port_offset + counters.elevator_count);
                 snprintf(overseer_address_with_port, sizeof(overseer_address_with_port), "%s:%d", BASE_ADDRESS, BASE_PORT);
@@ -210,6 +215,7 @@ int main(int argc, char *argv[])
                     current_offset_str,
                     overseer_address_with_port,
                     NULL};
+                initialize_elevator(atoi(current_offset_str), shmPointers, starting_floor);
                 processPIDs.elevator[counters.elevator_count] = spawn_process("./elevator", args);
                 counters.elevator_count++;
             }
@@ -232,6 +238,7 @@ int main(int argc, char *argv[])
                     current_offset_str,
                     overseer_address_with_port,
                     NULL};
+                initialize_destselect(atoi(current_offset_str), shmPointers);
                 processPIDs.destselect[counters.destselect_count] = spawn_process("./destselect", args);
                 counters.destselect_count++;
             }
@@ -277,9 +284,6 @@ int main(int argc, char *argv[])
             }
         }
     }
-
-    // Simulate events based on the scenario
-    // ...
 
     // Terminate processes, release shared memory and close the file
     usleep(1000000); // 1 sec sleep

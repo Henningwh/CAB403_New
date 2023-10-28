@@ -122,7 +122,6 @@ ShmPointers initializeSharedMemory()
 
   // Base
   pointers.base = master;
-
   // Overseer
   pointers.pOverseer = (shm_overseer *)((char *)master + offset);
   // Firealarm
@@ -230,4 +229,67 @@ void terminate_all_processes(ProcessPIDs *pids)
       kill(pids->elevator[i], SIGTERM);
     }
   }
+}
+
+/*
+Initialization of components
+*/
+void initialize_overseer(int current_offset, ShmPointers shmPointers)
+{
+  shm_overseer *p = (shm_overseer *)((char *)shmPointers.base + current_offset);
+
+  p->security_alarm = '-';
+}
+
+void initialize_firealarm(int current_offset, ShmPointers shmPointers)
+{
+  shm_firealarm *p = (shm_firealarm *)((char *)shmPointers.base + current_offset);
+
+  p->alarm = '-';
+}
+
+void initialize_cardreader(int current_offset, ShmPointers shmPointers)
+{
+  shm_cardreader *p = (shm_cardreader *)((char *)shmPointers.base + current_offset);
+
+  memset(p->scanned, '\0', sizeof(p->scanned));
+  p->response = '\0';
+}
+
+void initialize_door(int current_offset, ShmPointers shmPointers)
+{
+  shm_door *p = (shm_door *)((char *)shmPointers.base + current_offset);
+
+  p->status = 'C';
+}
+
+void initialize_callpoint(int current_offset, ShmPointers shmPointers)
+{
+  shm_callpoint *p = (shm_callpoint *)((char *)shmPointers.base + current_offset);
+
+  p->status = '-';
+}
+
+void initialize_tempsensor(int current_offset, ShmPointers shmPointers)
+{
+  shm_tempsensor *p = (shm_tempsensor *)((char *)shmPointers.base + current_offset);
+
+  p->temperature = 22.0f;
+}
+
+void initialize_elevator(int current_offset, ShmPointers shmPointers, char starting_floor)
+{
+  shm_elevator *p = (shm_elevator *)((char *)shmPointers.base + current_offset);
+
+  p->status = 'C';
+  p->direction = '-';
+  p->floor = starting_floor;
+}
+void initialize_destselect(int current_offset, ShmPointers shmPointers)
+{
+  shm_destselect *p = (shm_destselect *)((char *)shmPointers.base + current_offset);
+
+  memset(p->scanned, '\0', sizeof(p->scanned));
+  p->response = '\0';
+  p->floor_select = 0;
 }
