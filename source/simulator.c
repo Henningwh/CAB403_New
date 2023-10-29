@@ -36,15 +36,6 @@ int main(int argc, char *argv[])
 
     read_file(argv[1], init, scenario);
 
-    for (int i = 0; init[i]; i++)
-    {
-        printf("PRINT: %s\n", init[i]);
-    }
-    for (int i = 0; scenario[i]; i++)
-    {
-        printf("PRINT: %s\n", scenario[i]);
-    }
-
     printf("--- Initializing Processes: ---\n");
     for (int i = 0; init[i]; i++)
     {
@@ -280,12 +271,14 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Sleep for 1sec then terminate processes, release shared memory, free up arrays and close the file
+    // Sleep for 1sec then start the cleanup
     usleep(1000000);
+
     printf("--- CLEANUP: ---\n");
-    terminate_all_processes(&processPIDs);
-    cleanupSharedMemory();
-    for (int i = 0; init[i]; i++)
+    destroy_mutex_cond(counters, shmPointers); // Destroy all mutexes and conditions created
+    terminate_all_processes(&processPIDs);     // Terminate processes based on PID
+    cleanupSharedMemory();                     // Release shared memory
+    for (int i = 0; init[i]; i++)              // Free up arrays
     {
         free(init[i]);
     }

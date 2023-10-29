@@ -3,29 +3,23 @@
 void *open_shared_memory(const char *shm_path)
 {
   // From intro video on Canvas
-  int shm_fd = shm_open(shm_path, O_RDWR, 0);
-  if (shm_fd == -1)
+  int fd = shm_open(shm_path, O_RDWR, 0);
+  if (fd == -1)
   {
-    perror("shm_open");
-    close(shm_fd);
-    return NULL;
+    perror("Error: An error occurred in shm_open()");
+    close(fd);
+    return 0;
   }
-  struct stat shm_stat;
-  if (fstat(shm_fd, &shm_stat) == -1)
+  size_t size = calculateTotalShmSize();
+  void *base = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (base == MAP_FAILED)
   {
-    perror("fstat");
-    close(shm_fd);
-    return NULL;
+    perror("Error: An error occurred in mmap()");
+    close(fd);
+    return 0;
   }
-  void *shm = mmap(NULL, shm_stat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-  if (shm == MAP_FAILED)
-  {
-    perror("mmap");
-    close(shm_fd);
-    return NULL;
-  }
-
-  return shm;
+  close(fd);
+  return base;
 }
 
 int create_tcp_connection(const char *full_address, int timeout)
@@ -94,7 +88,7 @@ ShmPointers initializeSharedMemory()
   size_t offset = 0;
 
   // Initialize shared memory space
-  int fd = shm_open("/shm", O_CREAT | O_RDWR, 0);
+  int fd = shm_open("/shm", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
   if (fd == -1)
   {
     perror("Error: An error occurred in shm_open()");
@@ -238,6 +232,7 @@ void initialize_overseer(int current_offset, ShmPointers shmPointers)
 {
   shm_overseer *p = (shm_overseer *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "overseer");
   p->security_alarm = '-';
 }
 
@@ -245,6 +240,7 @@ void initialize_firealarm(int current_offset, ShmPointers shmPointers)
 {
   shm_firealarm *p = (shm_firealarm *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "firealarm");
   p->alarm = '-';
 }
 
@@ -252,6 +248,7 @@ void initialize_cardreader(int current_offset, ShmPointers shmPointers)
 {
   shm_cardreader *p = (shm_cardreader *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "cardreader");
   memset(p->scanned, '\0', sizeof(p->scanned));
   p->response = '\0';
 }
@@ -260,6 +257,7 @@ void initialize_door(int current_offset, ShmPointers shmPointers)
 {
   shm_door *p = (shm_door *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "door");
   p->status = 'C';
 }
 
@@ -267,6 +265,7 @@ void initialize_callpoint(int current_offset, ShmPointers shmPointers)
 {
   shm_callpoint *p = (shm_callpoint *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "callpoint");
   p->status = '-';
 }
 
@@ -274,6 +273,7 @@ void initialize_tempsensor(int current_offset, ShmPointers shmPointers)
 {
   shm_tempsensor *p = (shm_tempsensor *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "tempsensor");
   p->temperature = 22.0f;
 }
 
@@ -281,6 +281,7 @@ void initialize_elevator(int current_offset, ShmPointers shmPointers, uint8_t st
 {
   shm_elevator *p = (shm_elevator *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "elevator");
   p->status = 'C';
   p->direction = '-';
   p->floor = starting_floor;
@@ -289,9 +290,150 @@ void initialize_destselect(int current_offset, ShmPointers shmPointers)
 {
   shm_destselect *p = (shm_destselect *)((char *)shmPointers.base + current_offset);
 
+  initialize_mutex_cond(p, "destselect");
   memset(p->scanned, '\0', sizeof(p->scanned));
   p->response = '\0';
   p->floor_select = 0;
+}
+
+void initialize_mutex_cond(void *p, char *component)
+{
+  pthread_mutexattr_t mattr;
+  pthread_condattr_t cattr;
+
+  // Init mutex attributes
+  pthread_mutexattr_init(&mattr);
+  pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+
+  // Init cond attributes
+  pthread_condattr_init(&cattr);
+  pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
+
+  if (strcmp(component, "overseer") == 0)
+  {
+    shm_overseer *overseer = (shm_overseer *)p;
+    pthread_mutex_init(&overseer->mutex, &mattr);
+    pthread_cond_init(&overseer->cond, &cattr);
+  }
+  else if (strcmp(component, "firealarm") == 0)
+  {
+    shm_firealarm *firealarm = (shm_firealarm *)p;
+    pthread_mutex_init(&firealarm->mutex, &mattr);
+    pthread_cond_init(&firealarm->cond, &cattr);
+  }
+  else if (strcmp(component, "cardreader") == 0)
+  {
+    shm_cardreader *cardreader = (shm_cardreader *)p;
+    pthread_mutex_init(&cardreader->mutex, &mattr);
+    pthread_cond_init(&cardreader->scanned_cond, &cattr);
+    pthread_cond_init(&cardreader->response_cond, &cattr);
+  }
+  else if (strcmp(component, "door") == 0)
+  {
+    shm_door *door = (shm_door *)p;
+    pthread_mutex_init(&door->mutex, &mattr);
+    pthread_cond_init(&door->cond_start, &cattr);
+    pthread_cond_init(&door->cond_end, &cattr);
+  }
+  else if (strcmp(component, "callpoint") == 0)
+  {
+    shm_callpoint *callpoint = (shm_callpoint *)p;
+    pthread_mutex_init(&callpoint->mutex, &mattr);
+    pthread_cond_init(&callpoint->cond, &cattr);
+  }
+  else if (strcmp(component, "tempsensor") == 0)
+  {
+    shm_tempsensor *tempsensor = (shm_tempsensor *)p;
+    pthread_mutex_init(&tempsensor->mutex, &mattr);
+    pthread_cond_init(&tempsensor->cond, &cattr);
+  }
+  else if (strcmp(component, "elevator") == 0)
+  {
+    shm_elevator *elevator = (shm_elevator *)p;
+    pthread_mutex_init(&elevator->mutex, &mattr);
+    pthread_cond_init(&elevator->cond_elevator, &cattr);
+    pthread_cond_init(&elevator->cond_controller, &cattr);
+  }
+  else if (strcmp(component, "destselect") == 0)
+  {
+    shm_destselect *destselect = (shm_destselect *)p;
+    pthread_mutex_init(&destselect->mutex, &mattr);
+    pthread_cond_init(&destselect->scanned_cond, &cattr);
+    pthread_cond_init(&destselect->response_cond, &cattr);
+  }
+  else
+  {
+    printf("Couldnt initialize component named '%s'", component);
+  }
+}
+
+void destroy_mutex_cond(instance_counters counters, ShmPointers shmPointers)
+{
+  if (counters.overseer_count > 0)
+  {
+    shm_overseer *overseer = (shm_overseer *)shmPointers.pOverseer;
+    pthread_mutex_destroy(&overseer->mutex);
+    pthread_cond_destroy(&overseer->cond);
+  }
+
+  if (counters.firealarm_count > 0)
+  {
+    shm_firealarm *firealarm = (shm_firealarm *)shmPointers.pFirealarm;
+    pthread_mutex_destroy(&firealarm->mutex);
+    pthread_cond_destroy(&firealarm->cond);
+  }
+
+  for (int i = 0; i < counters.cardreader_count; ++i)
+  {
+    void *current = (char *)shmPointers.pCardreader + i * sizeof(shm_cardreader);
+    shm_cardreader *cardreader = (shm_cardreader *)current;
+    pthread_mutex_destroy(&cardreader->mutex);
+    pthread_cond_destroy(&cardreader->scanned_cond);
+    pthread_cond_destroy(&cardreader->response_cond);
+  }
+
+  for (int i = 0; i < counters.door_count; ++i)
+  {
+    void *current = (char *)shmPointers.pDoor + i * sizeof(shm_door);
+    shm_door *door = (shm_door *)current;
+    pthread_mutex_destroy(&door->mutex);
+    pthread_cond_destroy(&door->cond_start);
+    pthread_cond_destroy(&door->cond_end);
+  }
+
+  for (int i = 0; i < counters.callpoint_count; ++i)
+  {
+    void *current = (char *)shmPointers.pCallpoint + i * sizeof(shm_callpoint);
+    shm_callpoint *callpoint = (shm_callpoint *)current;
+    pthread_mutex_destroy(&callpoint->mutex);
+    pthread_cond_destroy(&callpoint->cond);
+  }
+
+  for (int i = 0; i < counters.tempsensor_count; ++i)
+  {
+    void *current = (char *)shmPointers.pTempsensor + i * sizeof(shm_tempsensor);
+    shm_tempsensor *tempsensor = (shm_tempsensor *)current;
+    pthread_mutex_destroy(&tempsensor->mutex);
+    pthread_cond_destroy(&tempsensor->cond);
+  }
+
+  for (int i = 0; i < counters.elevator_count; ++i)
+  {
+    void *current = (char *)shmPointers.pElevator + i * sizeof(shm_elevator);
+    shm_elevator *elevator = (shm_elevator *)current;
+    pthread_mutex_destroy(&elevator->mutex);
+    pthread_cond_destroy(&elevator->cond_elevator);
+    pthread_cond_destroy(&elevator->cond_controller);
+  }
+
+  for (int i = 0; i < counters.destselect_count; ++i)
+  {
+    void *current = (char *)shmPointers.pDestselect + i * sizeof(shm_destselect);
+    shm_destselect *destselect = (shm_destselect *)current;
+    pthread_mutex_destroy(&destselect->mutex);
+    pthread_cond_destroy(&destselect->scanned_cond);
+    pthread_cond_destroy(&destselect->response_cond);
+  }
 }
 
 void read_file(const char *path, char **init, char **scenario)
@@ -330,4 +472,46 @@ void read_file(const char *path, char **init, char **scenario)
   }
 
   fclose(file);
+}
+
+bool parse_address_port(const char *input, char *address, int *port)
+{
+  int result = sscanf(input, "%39[^:]:%d", address, port);
+  return result == 2;
+}
+
+int get_port_from_code(const char *code)
+{
+  if (strcmp(code, "O") == 0)
+  {
+    return 3000;
+  }
+  else if (strcmp(code, "F") == 0)
+  {
+    return 3100;
+  }
+  else if (code[0] == 'S')
+  {
+    return 3500 + atoi(code + 1);
+  }
+  return -1; // error
+}
+
+int parse_line_to_addresses(const char *line, char result[][MAX_ADDRESS_LEN])
+{
+  int count = 0;
+  char *token = strtok((char *)line, " ");
+
+  while (token != NULL)
+  {
+    int port = get_port_from_code(token);
+    if (port != -1)
+    {
+      snprintf(result[count], MAX_ADDRESS_LEN, "127.0.0.1:%d", port);
+      count++;
+    }
+    token = strtok(NULL, " ");
+  }
+
+  return count;
 }

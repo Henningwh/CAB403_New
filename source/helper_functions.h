@@ -13,11 +13,13 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #include "data_structs.h"
 
 #define MAX_LINES 100
 #define LINE_LENGTH 256
+#define MAX_ADDRESS_LEN 50
 
 // Function declarations
 void *open_shared_memory(const char *shm_path);
@@ -36,6 +38,12 @@ void initialize_callpoint(int current_offset, ShmPointers shmPointers);
 void initialize_tempsensor(int current_offset, ShmPointers shmPointers);
 void initialize_elevator(int current_offset, ShmPointers shmPointers, uint8_t starting_floor);
 void initialize_destselect(int current_offset, ShmPointers shmPointers);
+void initialize_mutex_cond(void *p, char *component);
+void destroy_mutex_cond(instance_counters counters, ShmPointers shmPointers);
+// Other methods
 void read_file(const char *path, char **init, char **scenario);
+bool parse_address_port(const char *input, char *address, int *port);
+int get_port_from_code(const char *code);
+int parse_line_to_addresses(const char *line, char result[][MAX_ADDRESS_LEN]);
 
 #endif
