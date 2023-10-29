@@ -31,6 +31,8 @@ struct ConnectedRemoteSocket {
     struct sockaddr_in remoteAddr;
 };
 
+int splitString(const char *input, char *delimiter, char *result[], int maxSegments);
+
 int openAndBindNewTCPport(int port, char* moduleName);
 
 void sendAndPrintFromModule(char* moduleName, char* msg, int localSockFD);
