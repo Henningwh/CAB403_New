@@ -102,7 +102,7 @@ int main(int argc, char **argv)
           continue;
         }
 
-        strcpy(local_dg.header, "TEMP");
+        memcpy(local_dg.header, "TEMP", 4);
         sendUDPMessageTemp(&local_dg, dist_address, dist_port, moduleName);
       }
 
