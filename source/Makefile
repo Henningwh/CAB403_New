@@ -33,7 +33,7 @@ simulator: simulator.o helper_functions.o
 # Compile cardreader
 cardreader.o: cardreader.c
 	$(CC) -c $< $(CFLAGS)
-cardreader: cardreader.o helper_functions.o
+cardreader: cardreader.o helper_functions.o ipLibTCP.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile door
