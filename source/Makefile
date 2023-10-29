@@ -33,7 +33,7 @@ simulator: simulator.o helper_functions.o
 # Compile cardreader
 cardreader.o: cardreader.c
 	$(CC) -c $< $(CFLAGS)
-cardreader: cardreader.o helper_functions.o
+cardreader: cardreader.o helper_functions.o ipLibTCP.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile door
@@ -51,7 +51,7 @@ callpoint: callpoint.o helper_functions.o
 # Compile tempsensor
 tempsensor.o: tempsensor.c
 	$(CC) -c $< $(CFLAGS)
-tempsensor: tempsensor.o helper_functions.o
+tempsensor: tempsensor.o helper_functions.o ipLibUDP.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile elevator

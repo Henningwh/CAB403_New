@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
             initialize_overseer(atoi(current_offset_str), shmPointers);
             processPIDs.overseer = spawn_process("./overseer", args);
             counters.overseer_count++;
-            usleep(200000); // Sleep for 2sec to let it initiate before continuing
+            usleep(300000); // Sleep for 3sec to let it initiate before continuing
         }
         // {address:port} {temperature threshold} {min detections} {detection period (in microseconds)} {reserved argument} {shared memory path} {shared memory offset} {overseer address:port}
         if (strcmp(component, "firealarm") == 0)

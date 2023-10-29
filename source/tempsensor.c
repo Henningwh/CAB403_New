@@ -10,11 +10,19 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "ipLibUDP.h"
 #include "helper_functions.h"
 #include "data_structs.h"
 #include "dg_structs.h"
 
 #define MAX_RECEIVERS 50
+temp_update_dg local_dg;
+
+void customParseAndHandleUdp(temp_update_dg *msg)
+{
+  printf("%d CHECK\n", local_dg.id);
+  free(msg);
+}
 
 int main(int argc, char **argv)
 {
@@ -25,6 +33,8 @@ int main(int argc, char **argv)
   }
   // Extract command line parameters
   int id = atoi(argv[1]);
+  local_dg.id = id;
+  local_dg.address_count = 1;
   char address[40];
   int port;
 
@@ -32,11 +42,10 @@ int main(int argc, char **argv)
   {
     printf("Failed to parse address and port for tempsensor %d.\n", id);
   }
-  int max_condvar_wait = atoi(argv[3]);
+  // int max_condvar_wait = atoi(argv[3]);
   int max_update_wait = atoi(argv[4]);
   char *shm_path = argv[5];
   int offset = atoi(argv[6]);
-  printf("Hello from tempsensor %d\n", id);
 
   // Convert argv[7] to their respective address+port
   char line[50];
@@ -53,22 +62,22 @@ int main(int argc, char **argv)
   struct timespec last_update_time;
   clock_gettime(CLOCK_REALTIME, &last_update_time);
 
-  // udp socket
-  int udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
-
-  // //IP UDP Stuff//////////////////////////
-  // int listenUDPSocketFD = openAndBindNewUdpPort(overseerUdpPort, moduleName);
-  // pthread_t id2;
-  // struct RecieveUDPMsgStruct overseerUdpParseAndHandle;
-  // overseerUdpParseAndHandle.moduleName = moduleName;
-  // overseerUdpParseAndHandle.listenSocketFD = listenUDPSocketFD;
-  // overseerUdpParseAndHandle.customParseAndHandleMessage = customParseAndHandleUdp;
-  // pthread_create(&id2,NULL,continouslyRecieveUDPMsgAndPrint,(void*)&overseerUdpParseAndHandle);
+  // UDP Listener on a spesific port
+  char moduleName[50];
+  sprintf(moduleName, "Tempsensor%d", id);
+  int listenUDPSocketFD = openAndBindNewUdpPort(port, moduleName);
+  pthread_t id2;
+  struct RecieveUDPMsgStruct tempsensorUdpParseAndHandle;
+  tempsensorUdpParseAndHandle.moduleName = moduleName;
+  tempsensorUdpParseAndHandle.listenSocketFD = listenUDPSocketFD;
+  tempsensorUdpParseAndHandle.customParseAndHandleMessage = customParseAndHandleUdp;
+  pthread_create(&id2, NULL, continouslyRecieveUDPMsgAndPrintTemp, (void *)&tempsensorUdpParseAndHandle);
 
   while (1)
   {
     pthread_mutex_lock(&p->mutex);
     float current_temperature = p->temperature;
+    local_dg.temperature = current_temperature;
     pthread_mutex_unlock(&p->mutex);
 
     struct timespec current_time;
@@ -80,26 +89,21 @@ int main(int argc, char **argv)
         (current_time.tv_sec - last_update_time.tv_sec) * 1e9 + current_time.tv_nsec - last_update_time.tv_nsec > max_update_wait * 1e3) // Max update wait surpassed
     {
       // Construct a UDP datagram
-      temp_update_dg datagram;
+      // temp_update_dg datagram;
       // datagram = construct_datagram(id, current_temperature, current_time);
 
       for (int i = 0; i < numAddresses; i++)
       {
-        struct sockaddr_in dest_addr;
-        memset(&dest_addr, 0, sizeof(dest_addr));
-        dest_addr.sin_family = AF_INET;
-        char dist_address[40];
+        char dist_address[10];
         int dist_port = 0;
-
         if (!parse_address_port(addresses[i], dist_address, &dist_port))
         {
           printf("Failed to parse address and port.\n");
           continue;
         }
-        dest_addr.sin_port = htons(dist_port);
-        inet_pton(AF_INET, dist_address, &dest_addr.sin_addr);
 
-        sendto(udp_socket, &datagram, sizeof(temp_update_dg), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        memcpy(local_dg.header, "TEMP", 4);
+        sendUDPMessageTemp(&local_dg, dist_address, dist_port, moduleName);
       }
 
       last_update_time = current_time; // Update the last update time
