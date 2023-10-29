@@ -160,6 +160,7 @@ void door(int argc, char *argv[]) {
 
     void *base = open_shared_memory(shm_path);
     shm_door *p = (shm_door *)((char *)base + offset);
+    status = p->status;
     mutex = p->mutex;
     cond_start = p->cond_start;
     cond_end = p->cond_end;
