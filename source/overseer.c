@@ -259,13 +259,9 @@ void customHandleDestselect(char* msg){
 
 
 void customHandleRecieveMessagesInOverseer(struct CustomMsgHandlerArgs* sockAndargs){
-    printf("CONNECTED SOCKET INSIDE: %d\n", sockAndargs->socket);
     char* msg = recieveAndPrintMsg(sockAndargs->socket, moduleName);
     char* firstWord = getFirstWord(msg);
     printf("First word: %s\n", firstWord);
-    for(int i = 0; i<8; i++){
-        printf("argV[%d]: %s\n", i, sockAndargs->arguments[i]);
-    }
 
     if (strcmp(firstWord, "CARDREADER") == 0) {
         customHandleCardreader(msg, sockAndargs->arguments[5], sockAndargs->arguments[6], sockAndargs);
