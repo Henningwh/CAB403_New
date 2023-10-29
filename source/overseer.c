@@ -24,6 +24,19 @@ pthread_mutex_t safeDoorMutex = PTHREAD_MUTEX_INITIALIZER;
 struct DoorInfo safeDoors[10];
 int safeDoorsCount = 0;
 
+pthread_mutex_t firerAlarmMutex = PTHREAD_MUTEX_INITIALIZER;
+struct FireAlarmInfo fireAlarm;
+
+pthread_mutex_t elevatorMutex = PTHREAD_MUTEX_INITIALIZER;
+struct ElevatorInfo elevators[10];
+int elevatorsCount = 0;
+
+pthread_mutex_t destSelectMutex = PTHREAD_MUTEX_INITIALIZER;
+struct ElevatorInfo destSelects[10];
+int destSelectsCount = 0;
+
+char* moduleName = "Overseer"; 
+
 void customHandleRecieveFromTestModule(char *msg, int remoteSocketFD);
 char **sentenceToWordArray(char *sentence);
 
@@ -118,6 +131,59 @@ void handleCommand(char *command)
 }
 
 char *moduleName = "Overseer";
+*/
+
+void customSendOpenToDoor(struct CustomMsgHandlerArgs* sockAndargs){
+    sendAndPrintFromModule(moduleName, "OPEN#", sockAndargs->socket);
+    char* msg1 = recieveAndPrintMsg(sockAndargs->socket, moduleName);
+    if(strcmp(msg1,"OPENING") == 0){
+        char* msg2 = recieveAndPrintMsg(sockAndargs->socket, moduleName);
+        if(strcmp(msg2,"OPENED") == 0){
+            int microsecondsOpen = atoi(sockAndargs->arguments[3]);
+            sleepMicroseconds(microsecondsOpen);
+            sendAndPrintFromModule(moduleName, "CLOSE#", sockAndargs->socket);
+        }else{
+            printf("Got the wrong message, should have gotten OPENED, got: %s", msg2);
+            exit(1);
+        }
+    }else{
+        printf("Got the wrong message, should have gotten OPENING, got: %s", msg1);
+        exit(1);
+    }
+}
+
+
+void handleCommand(char* command){
+    if(strcmp(command, "DOOR LIST")){
+        for(int i = 0; i<safeDoorsCount+1; i++){
+            printf("id: %d, ip: %s, port: %d, mode: %s", safeDoors[i].id, safeDoors[i].ip, safeDoors[i].port, safeDoors[i].configuration);
+        }
+        for(int i = 0; i<secureDoorsCount+1; i++){
+            printf("id: %d, ip: %s, port: %d, mode: %s", secureDoors[i].id, secureDoors[i].ip, secureDoors[i].port, secureDoors[i].configuration);
+        }
+    }
+    char** wordArr = sentenceToWordArray(command);
+    char prefix[50];
+    sprintf(prefix, "%s %s", wordArr[0], wordArr[1]);
+    if(strcmp(prefix, "DOOR OPEN") == 0){
+        struct DoorInfo* doorStruct =findDoorById(secureDoors, safeDoors, atoi(wordArr[2]));
+        struct CustomSendMsgHandlerAndDependencies* sendDoorStruct;
+            sendDoorStruct->remoteAddr = doorStruct->ip;
+            sendDoorStruct->remotePort = doorStruct->port;
+            sendDoorStruct->customMsgHandler = customSendOpenToDoor;
+            connectToRemoteSocketAndSendMessage(sendDoorStruct);
+    }
+        if(strcmp(prefix, "DOOR CLOSE") == 0){
+        struct DoorInfo* doorStruct =findDoorById(secureDoors, safeDoors, atoi(wordArr[2]));
+        struct CustomSendMsgHandlerAndDependencies* sendDoorStruct;
+            sendDoorStruct->remoteAddr = doorStruct->ip;
+            sendDoorStruct->remotePort = doorStruct->port;
+            sendDoorStruct->arguments = sockAndargs->arguments;
+            sendDoorStruct->customMsgHandler = customSendCloseToDoor;
+            connectToRemoteSocketAndSendMessage(sendDoorStruct);
+    }
+}
+
 
 void customHandleRecieveFromTestModule(char *msg, int remoteSocketFD)
 {
@@ -183,6 +249,13 @@ void customSendAllowedToDoor(struct CustomMsgHandlerArgs *sockAndargs)
         }
         else
         {
+void customSendCloseToDoor(struct CustomMsgHandlerArgs* sockAndargs){
+    sendAndPrintFromModule(moduleName, "CLOSE#", sockAndargs->socket);
+    char* msg1 = recieveAndPrintMsg(sockAndargs->socket, moduleName);
+    if(strcmp(msg1,"CLOSING") == 0){
+        char* msg2 = recieveAndPrintMsg(sockAndargs->socket, moduleName);
+        if(strcmp(msg2,"CLOSED") == 0){
+        }else{
             printf("Got the wrong message, should have gotten OPENED, got: %s", msg2);
             exit(1);
         }
@@ -208,6 +281,8 @@ void customHandleCardreader(char *msg, char *authFile, char *connFile, struct Cu
     else if (strcmp(wordArr[2], "SCANNED") == 0)
     {
         printf("GOT INSIDE SCANNED: %s, %d, %s, %s\n", wordArr[3], atoi(wordArr[1]), authFile, connFile);
+    }else if (strcmp(wordArr[2], "SCANNED")==0){
+        //printf("GOT INSIDE SCANNED: %s, %d, %s, %s\n", wordArr[3], atoi(wordArr[1]), authFile, connFile);
         int doorId = checkAccess(wordArr[3], atoi(wordArr[1]), "DOOR", authFile, connFile);
         if (doorId != 0)
         {
@@ -219,12 +294,17 @@ void customHandleCardreader(char *msg, char *authFile, char *connFile, struct Cu
             sendDoorStruct->remoteAddr = doorStruct->ip;
             sendDoorStruct->remotePort = doorStruct->port;
             sendDoorStruct->arguments = sockAndargs->arguments;
-            sendDoorStruct->customMsgHandler = customSendAllowedToDoor;
+            sendDoorStruct->customMsgHandler = customSendOpenToDoor;
             connectToRemoteSocketAndSendMessage(sendDoorStruct);
         }
         else
         {
             printf("%s: Cardscanner %d DENIED: %d\n", moduleName, atoi(wordArr[1]), doorId);
+            close(sockAndargs->socket);
+        }else{
+            printf("%s: Cardscanner %d DENIED: %d\n",moduleName, atoi(wordArr[1]), doorId);
+            sendAndPrintFromModule(moduleName, "DENIED#", sockAndargs->socket);
+            close(sockAndargs->socket);
         }
     }
     else
@@ -282,20 +362,50 @@ void customHandleFirealarm(char *msg)
 {
     char **wordArr = sentenceToWordArray(msg);
     char **ipArr = (char **)malloc(10 * sizeof(char *));
-    splitString(wordArr[2], ":", ipArr, 3);
+    splitString(wordArr[1], ":", ipArr, 3);
     struct FireAlarmInfo fireAlarmStruct;
-    fireAlarmStruct.id = atoi(wordArr[1]);
     fireAlarmStruct.ip = ipArr[0];
     fireAlarmStruct.port = atoi(ipArr[1]);
+    pthread_mutex_lock(&firerAlarmMutex);
+    fireAlarm = fireAlarmStruct;
+    pthread_mutex_unlock(&firerAlarmMutex);
+
 }
 // ELEVATOR {id} {address:port} HELLO#
 void customHandleElevator(char *msg)
 {
+//ELEVATOR {id} {address:port} HELLO#
+void customHandleElevator(char* msg){
+    char** wordArr = sentenceToWordArray(msg);
+    char **ipArr = (char **)malloc(10 * sizeof(char *));
+    splitString(wordArr[2], ":", ipArr, 3);
+    struct ElevatorInfo fireAlarmStruct;
+    elevatorStruct.id = atoi(wordArr[1]);
+    elevatorStruct.ip = ipArr[0];
+    elevatorStruct.port = atoi(ipArr[1]);
+    pthread_mutex_lock(&elevatorMutex);
+    elevators[elevatorsCount] = elevatorStruct;
+    elevatorsCount ++;
+    pthread_mutex_unlock(&elevatorMutex);
+
 }
 // DESTSELECT {id} HELLO#
 void customHandleDestselect(char *msg)
 {
 }
+//DESTSELECT {id} HELLO#
+void customHandleDestselect(char* msg){
+    char** wordArr = sentenceToWordArray(msg);
+    struct DestSelectInfo destSelectStruct;
+    destSelectStruct.id = wordArr[1];
+    pthread_mutex_lock(&destSelectMutex);
+    destSelects[destSelectsCount] = destSelectStruct;
+    destSelectsCount++;
+    pthread_mutex_unlock(&destSelectmMutex);
+
+}
+
+
 
 void customHandleRecieveMessagesInOverseer(struct CustomMsgHandlerArgs *sockAndargs)
 {
