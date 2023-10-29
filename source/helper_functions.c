@@ -484,7 +484,7 @@ int get_port_from_code(const char *code)
 {
   if (strcmp(code, "O") == 0)
   {
-    return 3000;
+    return 5000;
   }
   else if (strcmp(code, "F") == 0)
   {

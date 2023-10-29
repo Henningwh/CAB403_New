@@ -51,7 +51,7 @@ callpoint: callpoint.o helper_functions.o
 # Compile tempsensor
 tempsensor.o: tempsensor.c
 	$(CC) -c $< $(CFLAGS)
-tempsensor: tempsensor.o helper_functions.o
+tempsensor: tempsensor.o helper_functions.o ipLibUDP.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile elevator
