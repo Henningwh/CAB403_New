@@ -7,6 +7,10 @@ ALL_COMPONENTS = overseer simulator firealarm cardreader door callpoint tempsens
 helper_functions.o: helper_functions.c helper_functions.h
 	$(CC) $(CFLAGS) -c helper_functions.c
 
+# COmpile ipLibTCP
+ipLibTCP.o: ipLibTCP.c
+	$(CC) -c $< $(CFLAGS)
+
 # Compile overseer
 overseer.o: overseer.c
 	$(CC) -c $< $(CFLAGS)
@@ -30,6 +34,12 @@ simulator: simulator.o helper_functions.o
 cardreader.o: cardreader.c
 	$(CC) -c $< $(CFLAGS)
 cardreader: cardreader.o helper_functions.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# Compile door
+door.o: door.c
+	$(CC) -c $< $(CFLAGS)
+door: door.o ipLibTCP.o helper_functions.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Compile callpoint
