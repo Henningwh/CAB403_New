@@ -4,17 +4,42 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-#include "helper_functions.c"
-#include "data_structs.h"
+#include <sys/mman.h>
+#include <sys/types.h>
 #include "ipLibTCP.h"
+#include "data_structs.h"
+#include "helper_functions.h"
 
 #define MAX_FLOORS 30
 #define MAX_QUEUE_SIZE 2 * MAX_FLOORS
 
+
+
+char* moduleName = "Elevator";
+pthread_mutex_t emergMutex = PTHREAD_MUTEX_INITIALIZER;
+int emergencyMode = 0;
+
+pthread_mutex_t secMutex = PTHREAD_MUTEX_INITIALIZER;
+int securityMode = 0;
+
+char status; // 'U' for up, 'D' for down, 'S' for stopped, 'u' for moving up, 'd' for moving down
+pthread_mutex_t mutex;
+pthread_cond_t cond_start;
+pthread_cond_t cond_end;
+
+
+
+void customHandleRecieveMessagesInElevator(struct CustomMsgHandlerArgs* sockAndargs){
+    // Implement similar logic to the Door program, adjusting for Elevator specific actions
+    // For example, OPEN might become MOVE_UP, CLOSE might become MOVE_DOWN, etc.
+}
+
+
 // Define a structure to hold floor requests
-typedef struct
-{
+
+
+
+typedef struct {
   int from_floor;
   int to_floor;
 } floor_request;
@@ -209,61 +234,72 @@ void elevator_operation(shm_elevator *elevator, int waittime, int door_open_time
   }
 
   pthread_mutex_unlock(&shm_mutex);
+}
 
-  //Send Hello
-
-    char **resultArrayO = (char **)malloc(10 * sizeof(char *));
-    char *inputO = argv[6];
-    splitString(inputO, ":", resultArrayO, maxSeqments);
-    char* addressO = strdup(resultArrayO[0]);
-    int portO = atoi(resultArrayO[1]);
-    free(resultArrayO);
-
-
-    struct CustomSendMsgHandlerAndDependencies sendHelloStruct;
-    sendHelloStruct.customMsgHandler = customSendHelloToOverseer;
-    sendHelloStruct.remotePort = portO;
-    sendHelloStruct.remoteAddr = addressO;
-    sendHelloStruct.moduleName = moduleName;
-    sendHelloStruct.arguments = argv;
-
-    connectToRemoteSocketAndSendMessage((void*)&sendHelloStruct);
-
-
-    pthread_join(&id, NULL);
-
-    while(1){}
+void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs, const char* id, const char* addrPort, const char* mode){
+    char* id = sockAndargs->arguments[1];
+    char* addrPort = sockAndargs->arguments[2];
+    char* mode = sockAndargs->arguments[3];
+    char msg[50];
+    sprintf(msg, "HELLO ELEVATOR %s %s %s#", id, addrPort, mode);
+    sendAndPrintFromModule(moduleName, msg, sockAndargs->socket);
 }
 
 
-int main(int argc, char *argv[])
-{
-  if (argc != 8)
-  {
+int main(int argc, char *argv[]) {
+  if (argc != 8) {
     fprintf(stderr, "Usage: %s {id} {address:port} {wait time (in microseconds)} {door open time (in microseconds)} {shared memory path} {shared memory offset} {overseer address:port}\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
+    // Extract shared memory path and offset from program arguments
+    const char *shm_path = argv[5];
+    off_t offset = strtol(argv[6], NULL, 10);
+
+    // Open shared memory
+    int fd = shm_open(shm_path, O_RDWR, 0666);
+    if (fd == -1) {
+    perror("shm_open");
+    exit(EXIT_FAILURE);
+    }
+    void *base = open_shared_memory(shm_path); // Make sure this function is defined
+    if (base == NULL) {
+        perror("open_shared_memory");
+        exit(EXIT_FAILURE);
+    }
+    shm_door *p = (shm_door *)((char *)base + offset);
+    if (p == NULL) {
+        perror("Failed to cast shared memory");
+        exit(EXIT_FAILURE);
+    }
+
+    shm_elevator *elevator = (shm_elevator *)((char *)base + offset);
+
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond_start, NULL);
+    pthread_cond_init(&cond_end, NULL); 
   // Initialization: Opening the socket and shared memory
-  int sockfd = create_tcp_connection(argv[2], 0); // Assuming no timeout
-  shm_elevator *elevator = (shm_elevator *)open_shared_memory(argv[5]);
+    int sockfd = create_tcp_connection(argv[2], 0);
+    int waittime = atoi(argv[3]);
+    int door_open_time = atoi(argv[4]);
 
-  int waittime = atoi(argv[3]);
-  int door_open_time = atoi(argv[4]);
+    // Sending initialization message to overseer
+    // TODO: Implement sending of HELLO message
+    struct CustomMsgHandlerArgs args;
+    args.socket = create_tcp_connection(argv[7], 0);
+    customSendHelloToOverseer(&args, argv[1], argv[2], "STANDARD");
+    
+    
+    shm_unlink(shm_path); // If you want to remove the shared memory object
+    munmap(base, sizeof(shm_elevator)); // Adjust the size as needed
+    close(fd);
 
-  // Sending initialization message to overseer
-  // TODO: Implement sending of HELLO message
 
-  while (1)
-  {
-    // TODO: Implement accepting and processing of incoming TCP messages
+    while (1) {
     process_request(sockfd, elevator);
-
-    // TODO: Implement elevator operation logic
-
     elevator_operation(elevator, waittime, door_open_time);
-  }
+    }
 
-  close(sockfd);
-  return 0;
+    close(sockfd);
+    return 0;
 }
