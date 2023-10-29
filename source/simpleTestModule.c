@@ -6,7 +6,8 @@
 #include <sys/socket.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include "ipLib.h"
+#include "ipLibTCP.h"
+#include "ipLibUDP.h"
 #include "simpleTestModule.h"
 
 char* moduleN = "Test module";
@@ -24,21 +25,21 @@ void customHandleRecieveMessagesInTestModule(int remoteSocketFD){
 }
 
 
-void customHandleSendMessages(int localSocketFD){
+void customHandleSendMessages(struct CustomMsgHandlerArgs* sockAndargs){
     printf("TestModule: inside custom send messages\n");
-    char* greeting = "Hi from test module#";
-    sendAndPrintFromModule(moduleN, greeting, localSocketFD);
-    char* msg1 = recieveAndPrintMsg(localSocketFD,moduleN);
+    char* greeting = "CARDREADER 104 SCANNED 2214a7ba5943d923#";
+    sendAndPrintFromModule(moduleN, greeting, sockAndargs->socket);
+    char* msg1 = recieveAndPrintMsg(sockAndargs->socket,moduleN);
     if(strcmp(msg1, "Hi back from overseer") == 0){
         char* sendstuff = "please send stuff#";
-        sendAndPrintFromModule(moduleN, sendstuff, localSocketFD);
+        sendAndPrintFromModule(moduleN, sendstuff, sockAndargs->socket);
     }else{
         printf("test module: got the wrong message: %s\n", msg1);
     }
-    char* msg2 = recieveAndPrintMsg(localSocketFD,moduleN);
+    char* msg2 = recieveAndPrintMsg(sockAndargs->socket,moduleN);
     if(strcmp(msg2, "here is stuff")==0){
         printf("Test module got STUFF. closing socket.\n");
-        close(localSocketFD);
+        close(sockAndargs->socket);
     }else{
         printf("test module: got the wrong message. Should be: here is stuff: %s\n", msg2);
     }
@@ -66,5 +67,10 @@ void runTestModule(){
     overseerSendMsgStruct.moduleName = "Test module";
 
     connectToRemoteSocketAndSendMessage((void*)&overseerSendMsgStruct);
+    sendUDPMessage("HIIIIIII", "127.0.0.1", overseerUdpPort, moduleN);
+    sendUDPMessage("SUPSUPSUP YOYOYO", "127.0.0.1", overseerUdpPort, moduleN);
 }
 
+int main(int argc, char* argV[]){
+    runTestModule();
+}

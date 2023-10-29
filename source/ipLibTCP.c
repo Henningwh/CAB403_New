@@ -6,10 +6,28 @@
 #include <sys/socket.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include "ipLib.h"
+#include "ipLibTCP.h"
 
 struct ConnectedRemoteSocket connectedSockets[100];
 int connectedSocketsCount = 0;
+
+int openAndBindNewTCPport(int port, char* moduleName){
+    int listenSocketFD = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenSocketFD < 0){
+        perror("Could not create TCP-socket");
+        exit(1);
+    }
+    struct sockaddr_in *listenAddr = createAddress(port, "");
+    //lets the overseer accept all connections since no ip address was specified in listenAddr
+    int bindRes = bind(listenSocketFD, listenAddr, sizeof(*listenAddr));
+    if(bindRes == 0){
+        printf("%s: Listen TCP-socket bound to port %d\n",moduleName, port);
+    }else{
+        printf("%s: Bind to TCP-port %d FAILED\n",moduleName, port);
+        exit(1);
+    }
+    return listenSocketFD;
+}
 
 void sendAndPrintFromModule(char* moduleName, char* msg, int localSockFD){
     int sentCount = send(localSockFD, msg , 1024, 0);
@@ -26,7 +44,7 @@ void sendAndPrintFromModule(char* moduleName, char* msg, int localSockFD){
 
 
 char* recieveAndPrintMsg(int socketFD, char* moduleName){
-    //printf("%s: socketID: %d\n", moduleName, socketFD);
+    printf("%s: socketID: %d\n", moduleName, socketFD);
     char receivedChar;
     char* receivedMessage = NULL;
     size_t messageSize = 0;
@@ -111,13 +129,16 @@ void connectToRemoteSocketAndSendMessage(struct CustomSendMsgHandlerAndDependenc
     char* addraddr = msgHandlerAndDeps->remoteAddr;
     struct sockaddr_in *remoteAddr = createAddress(msgHandlerAndDeps->remotePort, "");
     int connectionRes = connect(localSocket,remoteAddr, sizeof(*remoteAddr));
-    //wait(1);
+
     if (connectionRes == 0){
         printf("%s: connected successfully to %s:%d\n",msgHandlerAndDeps->moduleName, msgHandlerAndDeps->remoteAddr, msgHandlerAndDeps->remotePort);
     } else{
         printf("%s: Connection error. Could not connect to %s:%d\n",msgHandlerAndDeps->moduleName, msgHandlerAndDeps->remoteAddr, msgHandlerAndDeps->remotePort);
     }
-    msgHandlerAndDeps->customMsgHandler(localSocket);
+    struct CustomMsgHandlerArgs msgHandlerArgs;
+    msgHandlerArgs.socket = localSocket;
+    msgHandlerArgs.arguments = msgHandlerAndDeps->arguments;
+    msgHandlerAndDeps->customMsgHandler(&msgHandlerArgs);
     //close(localSocket);
     //printf("%s: Closed local socket\n", msgHandlerAndDeps->moduleName);
 }
@@ -133,20 +154,12 @@ void continouslyAcceptConnections(struct CustomRecieveMsgHandlerAndDependencies*
         }else{
             printf("%s: Connection failed when accepting connection from socket\n", msgHandlerAndDeps);
         }
-        struct ConnectedRemoteSocket* remoteSocket = malloc(sizeof (struct ConnectedRemoteSocket));
-        remoteSocket->remoteAddr = remoteAddr;
-        remoteSocket->remoteSocketFD = remoteSocketFD;
-        //Adding the connected sockets to an array. Might need to separate arrays for different modules
-        //connectedSockets[connectedSocketsCount++] = *remoteSocket;
 
-        //ToDo: deal with responses to the recieved messages
-        //spawnThreadsAndHandleMessages(remoteSocket);
         pthread_t id;
-        //printf("Overseer: tries to create msgRecieveHandler thread\n");
-        pthread_create(&id,NULL,msgHandlerAndDeps->customMsgHandler, remoteSocketFD);
-        //printf("Overseer: spawned msgRecieveHandler thread\n");
-        //msgHandlerAndDeps->customMsgHandler(remoteSocketFD);
-
+        struct CustomMsgHandlerArgs msgHandlerArgs;
+        msgHandlerArgs.socket = remoteSocketFD;
+        msgHandlerArgs.arguments = msgHandlerAndDeps->arguments;
+        pthread_create(&id,NULL,msgHandlerAndDeps->customMsgHandler, (void*)&msgHandlerArgs);
     }
 }
 

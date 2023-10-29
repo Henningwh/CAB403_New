@@ -3,26 +3,35 @@
 
 #include <arpa/inet.h>
 
-typedef void (*CustomMsgHandler)(int);
+struct CustomMsgHandlerArgs {
+    int socket;
+    char** arguments;
+};
+
+typedef void (*CustomMsgHandler)(struct CustomMsgHandlerArgs*);
 
 struct CustomRecieveMsgHandlerAndDependencies {
     CustomMsgHandler customMsgHandler;
     char* moduleName;
     int listenSocketFD;
+    char** arguments;
 };
+
 
 struct CustomSendMsgHandlerAndDependencies {
     CustomMsgHandler customMsgHandler;
     int remotePort;
     char* remoteAddr;
     char* moduleName;
-    char* msg;
+    char** arguments;
 };
 
 struct ConnectedRemoteSocket {
     int remoteSocketFD;
     struct sockaddr_in remoteAddr;
 };
+
+int openAndBindNewTCPport(int port, char* moduleName);
 
 void sendAndPrintFromModule(char* moduleName, char* msg, int localSockFD);
 
