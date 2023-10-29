@@ -3,6 +3,8 @@
 #include <pthread.h>
 
 #include "ipLibTCP.h"
+#include "data_structs.h"
+#include "helper_functions.h"
 
 char* moduleName = "Door";
 pthread_mutex_t emergMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -151,6 +153,17 @@ void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs){
 
 void door(int argc, char *argv[]) {
     char* idFromArg = argv[1];
+
+    // Shared memory setup
+    char* shm_path = argv[4];
+    int offset = atoi(argv[5]);
+
+    void *base = open_shared_memory(shm_path);
+    shm_door *p = (shm_door *)((char *)base + offset);
+    mutex = p->mutex;
+    cond_start = p->cond_start;
+    cond_end = p->cond_end;
+    
 
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond_start, NULL);
