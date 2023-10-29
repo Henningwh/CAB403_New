@@ -16,6 +16,9 @@
 
 #include "data_structs.h"
 
+#define MAX_LINES 100
+#define LINE_LENGTH 256
+
 // Function declarations
 void *open_shared_memory(const char *shm_path);
 int create_tcp_connection(const char *addr_port_str, int timeout);
@@ -31,7 +34,8 @@ void initialize_cardreader(int current_offset, ShmPointers shmPointers);
 void initialize_door(int current_offset, ShmPointers shmPointers);
 void initialize_callpoint(int current_offset, ShmPointers shmPointers);
 void initialize_tempsensor(int current_offset, ShmPointers shmPointers);
-void initialize_elevator(int current_offset, ShmPointers shmPointers, char starting_floor);
+void initialize_elevator(int current_offset, ShmPointers shmPointers, uint8_t starting_floor);
 void initialize_destselect(int current_offset, ShmPointers shmPointers);
+void read_file(const char *path, char **init, char **scenario);
 
 #endif

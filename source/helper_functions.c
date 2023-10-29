@@ -277,7 +277,7 @@ void initialize_tempsensor(int current_offset, ShmPointers shmPointers)
   p->temperature = 22.0f;
 }
 
-void initialize_elevator(int current_offset, ShmPointers shmPointers, char starting_floor)
+void initialize_elevator(int current_offset, ShmPointers shmPointers, uint8_t starting_floor)
 {
   shm_elevator *p = (shm_elevator *)((char *)shmPointers.base + current_offset);
 
@@ -292,4 +292,42 @@ void initialize_destselect(int current_offset, ShmPointers shmPointers)
   memset(p->scanned, '\0', sizeof(p->scanned));
   p->response = '\0';
   p->floor_select = 0;
+}
+
+void read_file(const char *path, char **init, char **scenario)
+{
+  FILE *file = fopen(path, "r");
+  if (!file)
+  {
+    perror("Failed to open file");
+    return;
+  }
+
+  char buffer[LINE_LENGTH];
+  int init_index = 0;
+  int scenario_index = 0;
+  int in_scenario = 0;
+
+  while (fgets(buffer, LINE_LENGTH, file))
+  {
+    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
+
+    if (!in_scenario)
+    {
+      if (strcmp(buffer, "SCENARIO") == 0)
+      {
+        in_scenario = 1;
+        continue;
+      }
+      init[init_index] = strdup(buffer);
+      init_index++;
+    }
+    else
+    {
+      scenario[scenario_index] = strdup(buffer);
+      scenario_index++;
+    }
+  }
+
+  fclose(file);
 }
