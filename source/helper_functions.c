@@ -479,3 +479,39 @@ bool parse_address_port(const char *input, char *address, int *port)
   int result = sscanf(input, "%39[^:]:%d", address, port);
   return result == 2;
 }
+
+int get_port_from_code(const char *code)
+{
+  if (strcmp(code, "O") == 0)
+  {
+    return 3000;
+  }
+  else if (strcmp(code, "F") == 0)
+  {
+    return 3100;
+  }
+  else if (code[0] == 'S')
+  {
+    return 3500 + atoi(code + 1);
+  }
+  return -1; // error
+}
+
+int parse_line_to_addresses(const char *line, char result[][MAX_ADDRESS_LEN])
+{
+  int count = 0;
+  char *token = strtok((char *)line, " ");
+
+  while (token != NULL)
+  {
+    int port = get_port_from_code(token);
+    if (port != -1)
+    {
+      snprintf(result[count], MAX_ADDRESS_LEN, "127.0.0.1:%d", port);
+      count++;
+    }
+    token = strtok(NULL, " ");
+  }
+
+  return count;
+}
