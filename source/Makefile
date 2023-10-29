@@ -1,12 +1,24 @@
 CC = gcc
 CFLAGS = -Wall
 LDFLAGS = -pthread
-# All comps minus overseer. Yet to be implemented
-ALL_COMPONENTS = simulator firealarm cardreader door callpoint tempsensor elevator destselect
+ALL_COMPONENTS = overseer simulator firealarm cardreader door callpoint tempsensor elevator destselect
 
 # Compile helper functions
 helper_functions.o: helper_functions.c helper_functions.h
 	$(CC) $(CFLAGS) -c helper_functions.c
+
+# Compile overseer
+overseer.o: overseer.c
+	$(CC) -c $< $(CFLAGS)
+ipLibTCP.o: ipLibTCP.c
+	$(CC) -c $< $(CFLAGS)
+ipLibUDP.o: ipLibUDP.c
+	$(CC) -c $< $(CFLAGS)
+sleepFunction.o: sleepFunction.c
+	$(CC) -c $< $(CFLAGS)
+overseer: overseer.o ipLibTCP.o ipLibUDP.o sleepFunction.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+
 
 # Compile simulator
 simulator.o: simulator.c 
