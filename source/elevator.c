@@ -235,14 +235,10 @@ void elevator_operation(shm_elevator *elevator, int waittime, int door_open_time
 
   pthread_mutex_unlock(&shm_mutex);
 }
-
-void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs, const char* id, const char* addrPort, const char* mode){
-    char* id = sockAndargs->arguments[1];
-    char* addrPort = sockAndargs->arguments[2];
-    char* mode = sockAndargs->arguments[3];
-    char msg[50];
-    sprintf(msg, "HELLO ELEVATOR %s %s %s#", id, addrPort, mode);
-    sendAndPrintFromModule(moduleName, msg, sockAndargs->socket);
+void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs, const char* id, const char* addrPort, const char* mode) {
+  char msg[50];
+  sprintf(msg, "HELLO ELEVATOR %s %s %s#", id, addrPort, mode);
+  sendAndPrintFromModule(moduleName, msg, sockAndargs->socket); // Ensure this function is defined.
 }
 
 
@@ -261,7 +257,7 @@ int main(int argc, char *argv[]) {
     if (fd == -1) {
     perror("shm_open");
     exit(EXIT_FAILURE);
-    }
+  }
     void *base = open_shared_memory(shm_path); // Make sure this function is defined
     if (base == NULL) {
         perror("open_shared_memory");
@@ -273,8 +269,11 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    shm_elevator *elevator = (shm_elevator *)((char *)base + offset);
-
+    shm_elevator *elevator = mmap(NULL, sizeof(shm_elevator), PROT_READ | PROT_WRITE, MAP_SHARED, fd, offset);
+    if (elevator == MAP_FAILED) {
+    perror("mmap");
+    exit(EXIT_FAILURE);
+    }
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond_start, NULL);
     pthread_cond_init(&cond_end, NULL); 
