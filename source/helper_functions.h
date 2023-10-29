@@ -36,6 +36,8 @@ void initialize_callpoint(int current_offset, ShmPointers shmPointers);
 void initialize_tempsensor(int current_offset, ShmPointers shmPointers);
 void initialize_elevator(int current_offset, ShmPointers shmPointers, uint8_t starting_floor);
 void initialize_destselect(int current_offset, ShmPointers shmPointers);
+void initialize_mutex_cond(void *p, char *component);
+void destroy_mutex_cond(instance_counters counters, ShmPointers shmPointers);
 void read_file(const char *path, char **init, char **scenario);
 
 #endif
