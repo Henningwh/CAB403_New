@@ -26,9 +26,8 @@ void customHandleRecieveMessagesInTestModule(int remoteSocketFD){
 
 
 void customHandleSendMessages(struct CustomMsgHandlerArgs* sockAndargs){
-    printf("TestModule: inside custom send messages\n");
-    char* greeting = "CARDREADER 104 SCANNED 2214a7ba5943d923#";
-    sendAndPrintFromModule(moduleN, greeting, sockAndargs->socket);
+    char* greeting = "DESTSELECT {id} HELLO#";
+    sendAndPrintFromModule(moduleN, "DESTSELECT {id} HELLO#", sockAndargs->socket);
     char* msg1 = recieveAndPrintMsg(sockAndargs->socket,moduleN);
     if(strcmp(msg1, "Hi back from overseer") == 0){
         char* sendstuff = "please send stuff#";
