@@ -31,6 +31,20 @@ char* moduleN = "Destselect";
  void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs){
     char* id = sockAndargs->arguments[1];
     char* addrPort = sockAndargs->arguments[2];
+    char mode = sockAndargs->arguments[3];
+    char msg[50];
+    sprintf(msg, "DESTSELECT %s %s %s#", id, addrPort, mode);
+    sendAndPrintFromModule(moduleN, msg, sockAndargs->socket);
+    close(sockAndargs->socket);
+}
+
+#include "helper_functions.h"
+
+char* moduleN = "Destselect";
+
+ void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs){
+    char* id = sockAndargs->arguments[1];
+    char* addrPort = sockAndargs->arguments[2];
     char *mode = sockAndargs->arguments[3];
     char msg[50];
     sprintf(msg, "DESTSELECT %s %s %s#", id, addrPort, mode);
@@ -57,6 +71,9 @@ int main(int argc, char *argv[]) {
     void *base = open_shared_memory(shm_path);
     shm_destselect *p = (shm_destselect *)((char *)base + shm_offset);
 
+    void *base = open_shared_memory(shm_path);
+    shm_destselect *p = (shm_destselect *)((char *)base + shm_offset);
+
     // Attach to the shared memory segment
     shm_destselect *shm;
     int shm_fd = shm_open(shm_path, O_RDWR, 0666);
@@ -70,6 +87,23 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     //{prossid} {id} {wait time (in microseconds)} {shared memory path} {shared memory offset} {overseer address:port}
+    char **resultArray = (char **)malloc(10 * sizeof(char *));
+    char *input = argv[5];
+    int maxSeqments = 10;
+
+    splitString(input, ":", resultArray, maxSeqments);
+    char* address = strdup(resultArray[0]);
+    int port = atoi(resultArray[1]);
+    free(resultArray);
+
+   
+    struct CustomSendMsgHandlerAndDependencies sendHelloStruct;
+            sendHelloStruct.remoteAddr = address;
+            sendHelloStruct.remotePort = port;
+            sendHelloStruct.arguments = argv;
+            sendHelloStruct.customMsgHandler = customSendHelloToOverseer;
+            sendHelloStruct.moduleName = moduleN;
+    connectToRemoteSocketAndSendMessage(&sendHelloStruct);
     char **resultArray = (char **)malloc(10 * sizeof(char *));
     char *input = argv[5];
     int maxSeqments = 10;
