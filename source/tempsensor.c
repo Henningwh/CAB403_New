@@ -16,10 +16,12 @@
 #include "dg_structs.h"
 
 #define MAX_RECEIVERS 50
+temp_update_dg local_dg;
 
-void customParseAndHandleUdp(char *msg)
+void customParseAndHandleUdp(temp_update_dg *msg)
 {
-  // Logic to handle incoming messages!
+  printf("%d CHECK\n", local_dg.id);
+  free(msg);
 }
 
 int main(int argc, char **argv)
@@ -31,6 +33,8 @@ int main(int argc, char **argv)
   }
   // Extract command line parameters
   int id = atoi(argv[1]);
+  local_dg.id = id;
+  local_dg.address_count = 1;
   char address[40];
   int port;
 
@@ -67,12 +71,13 @@ int main(int argc, char **argv)
   tempsensorUdpParseAndHandle.moduleName = moduleName;
   tempsensorUdpParseAndHandle.listenSocketFD = listenUDPSocketFD;
   tempsensorUdpParseAndHandle.customParseAndHandleMessage = customParseAndHandleUdp;
-  pthread_create(&id2, NULL, continouslyRecieveUDPMsgAndPrint, (void *)&tempsensorUdpParseAndHandle);
+  pthread_create(&id2, NULL, continouslyRecieveUDPMsgAndPrintTemp, (void *)&tempsensorUdpParseAndHandle);
 
   while (1)
   {
     pthread_mutex_lock(&p->mutex);
     float current_temperature = p->temperature;
+    local_dg.temperature = current_temperature;
     pthread_mutex_unlock(&p->mutex);
 
     struct timespec current_time;
@@ -96,7 +101,9 @@ int main(int argc, char **argv)
           printf("Failed to parse address and port.\n");
           continue;
         }
-        sendUDPMessage("TEST", dist_address, dist_port, moduleName);
+
+        strcpy(local_dg.header, "TEMP");
+        sendUDPMessageTemp(&local_dg, dist_address, dist_port, moduleName);
       }
 
       last_update_time = current_time; // Update the last update time
