@@ -11,27 +11,32 @@
 #include <fcntl.h>
 
 #include "helper_functions.h"
-#include "shm_structs.h"
+#include "data_structs.h"
 #include "dg_structs.h"
 
 #define MAX_RECEIVERS 50
 
 int main(int argc, char **argv)
 {
-  // Check for correct amount of command line args
-  if (argc < 8)
+  if (argc < 8) // Check for correct amount of command line args
   {
     fprintf(stderr, "Usage: {id} {address:port} {max condvar wait (microseconds)} {max update wait (microseconds)} {shared memory path} {shared memory offset} {receiver address:port} ...\n");
     exit(1);
   }
-
   // Extract command line parameters
-  // int id = atoi(argv[1]);
-  char *local_address_port = argv[2];
+  int id = atoi(argv[1]);
+  char address[40];
+  int port;
+
+  if (!parse_address_port(argv[2], address, &port))
+  {
+    printf("Failed to parse address and port.\n");
+  }
   int max_condvar_wait = atoi(argv[3]);
-  // int max_update_wait = atoi(argv[4]);
+  int max_update_wait = atoi(argv[4]);
   char *shm_path = argv[5];
-  int shm_offset = atoi(argv[6]);
+  int offset = atoi(argv[6]);
+  printf("INITIALIZE: Tempsensor with id '%d' using path '%s' with offset %d\n", id, shm_path, offset);
 
   char *receivers[MAX_RECEIVERS];
   int num_receivers = argc - 7; // Recievers are all args after the first 7
@@ -41,29 +46,17 @@ int main(int argc, char **argv)
   }
 
   // Shared memory setup
-  char *shm = open_shared_memory(shm_path);
-  shm_tempsensor *shm_ts = (shm_tempsensor *)(open_shared_memory(shm) + shm_offset);
+  void *base = open_shared_memory(shm_path);
+  shm_tempsensor *p = (shm_tempsensor *)((char *)base + offset);
 
-  // and UDP socket setup
-  struct sockaddr_in local_addr;
-  int udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
-  if (udp_socket == -1)
-  {
-    perror("socket()");
-    exit(1);
-  }
-  memset(&local_addr, 0, sizeof(local_addr));
-  local_addr.sin_family = AF_INET;
-  local_addr.sin_port = htons(atoi(local_address_port));
-  local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  bind(udp_socket, (struct sockaddr *)&local_addr, sizeof(local_addr));
+  // UDP socket setup
 
   while (1)
   {
     // Read temp
-    pthread_mutex_lock(&shm_ts->mutex);
-    float current_temperature = shm_ts->temperature;
-    pthread_mutex_unlock(&shm_ts->mutex);
+    pthread_mutex_lock(&p->mutex);
+    float current_temperature = p->temperature;
+    pthread_mutex_unlock(&p->mutex);
 
     // Distribute the temp to all recievers specified in the command line args
     for (int i = 0; i < num_receivers; i++)
@@ -75,19 +68,19 @@ int main(int argc, char **argv)
       int port;
       if (sscanf(receivers[i], "%39[^:]:%d", address, &port) != 2)
       {
-        perror("sscanf");
+        printf("Couldn't fetch the address and port from %s\n", receivers[i]);
         exit(1);
       }
       dest_addr.sin_port = htons(port);
       inet_pton(AF_INET, address, &dest_addr.sin_addr);
-      sendto(udp_socket, &current_temperature, sizeof(current_temperature), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+      //  sendto(udp_socket, &current_temperature, sizeof(current_temperature), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
     }
 
     // Wait before restarting the loop
     struct timespec wait_time;
     clock_gettime(CLOCK_REALTIME, &wait_time);
     wait_time.tv_nsec += max_condvar_wait;
-    pthread_cond_timedwait(&shm_ts->cond, &shm_ts->mutex, &wait_time);
+    pthread_cond_timedwait(&p->cond, &p->mutex, &wait_time);
   }
 
   return 0;

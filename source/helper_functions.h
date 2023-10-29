@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #include "data_structs.h"
 
@@ -39,5 +40,6 @@ void initialize_destselect(int current_offset, ShmPointers shmPointers);
 void initialize_mutex_cond(void *p, char *component);
 void destroy_mutex_cond(instance_counters counters, ShmPointers shmPointers);
 void read_file(const char *path, char **init, char **scenario);
+bool parse_address_port(const char *input, char *address, int *port);
 
 #endif

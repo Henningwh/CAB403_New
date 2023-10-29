@@ -473,3 +473,9 @@ void read_file(const char *path, char **init, char **scenario)
 
   fclose(file);
 }
+
+bool parse_address_port(const char *input, char *address, int *port)
+{
+  int result = sscanf(input, "%39[^:]:%d", address, port);
+  return result == 2;
+}
