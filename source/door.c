@@ -3,6 +3,8 @@
 #include <pthread.h>
 
 #include "ipLibTCP.h"
+#include "data_structs.h"
+#include "helper_functions.h"
 
 char* moduleName = "Door";
 pthread_mutex_t emergMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -142,7 +144,7 @@ void customHandleRecieveMessagesInDoor(struct CustomMsgHandlerArgs* sockAndargs)
 void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs){
     char* id = sockAndargs->arguments[1];
     char* addrPort = sockAndargs->arguments[2];
-    char mode = sockAndargs->arguments[3];
+    char* mode = sockAndargs->arguments[3];
     char msg[50];
     sprintf(msg, "DOOR %s %s %s#", id, addrPort, mode);
     sendAndPrintFromModule(moduleName, msg, sockAndargs->socket);
@@ -151,6 +153,18 @@ void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs){
 
 void door(int argc, char *argv[]) {
     char* idFromArg = argv[1];
+
+    // Shared memory setup
+    char* shm_path = argv[4];
+    int offset = atoi(argv[5]);
+
+    void *base = open_shared_memory(shm_path);
+    shm_door *p = (shm_door *)((char *)base + offset);
+    status = p->status;
+    mutex = p->mutex;
+    cond_start = p->cond_start;
+    cond_end = p->cond_end;
+
 
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond_start, NULL);
@@ -190,18 +204,22 @@ void door(int argc, char *argv[]) {
     splitString(inputO, ":", resultArrayO, maxSeqments);
     char* addressO = strdup(resultArrayO[0]);
     int portO = atoi(resultArrayO[1]);
-
     free(resultArrayO);
+
+
     struct CustomSendMsgHandlerAndDependencies sendHelloStruct;
-            sendHelloStruct.remoteAddr = addressO;
-            sendHelloStruct.remotePort = portO;
-            sendHelloStruct.arguments = argv;
-            sendHelloStruct.customMsgHandler = customSendHelloToOverseer;
-            sendHelloStruct.moduleName = moduleName;
-    connectToRemoteSocketAndSendMessage(&sendHelloStruct);
+    sendHelloStruct.customMsgHandler = customSendHelloToOverseer;
+    sendHelloStruct.remotePort = portO;
+    sendHelloStruct.remoteAddr = addressO;
+    sendHelloStruct.moduleName = moduleName;
+    sendHelloStruct.arguments = argv;
+
+    connectToRemoteSocketAndSendMessage((void*)&sendHelloStruct);
 
 
     pthread_join(&id, NULL);
+
+    while(1){}
 
 }
 
