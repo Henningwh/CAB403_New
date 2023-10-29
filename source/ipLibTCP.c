@@ -11,6 +11,23 @@
 struct ConnectedRemoteSocket connectedSockets[100];
 int connectedSocketsCount = 0;
 
+int splitString(const char *input, char *delimiter, char *result[], int maxSegments) {
+    char *str = strdup(input); // Duplicate the input string to avoid modification
+    char *token = strtok(str, delimiter);
+
+    int segmentCount = 0;
+
+    while (token != NULL && segmentCount < maxSegments) {
+        result[segmentCount] = strdup(token);
+        token = strtok(NULL, delimiter);
+        segmentCount++;
+    }
+
+    free(str); // Free the duplicated string
+
+    return segmentCount;
+}
+
 int openAndBindNewTCPport(int port, char* moduleName){
     int listenSocketFD = socket(AF_INET, SOCK_STREAM, 0);
     if (listenSocketFD < 0){

@@ -87,23 +87,6 @@ int checkAccess(char accessCode[], int cardId, char deviceId[], char authFile[],
 }
 
 
-int splitString(const char *input, char *delimiter, char *result[], int maxSegments) {
-    char *str = strdup(input); // Duplicate the input string to avoid modification
-    char *token = strtok(str, delimiter);
-
-    int segmentCount = 0;
-
-    while (token != NULL && segmentCount < maxSegments) {
-        result[segmentCount] = strdup(token);
-        token = strtok(NULL, delimiter);
-        segmentCount++;
-    }
-
-    free(str); // Free the duplicated string
-
-    return segmentCount;
-}
-
 char* getFirstWord(const char* input) {
     static char result[100]; 
     int i = 0;
@@ -168,9 +151,9 @@ char** sentenceToWordArray(char* sentence) {
 void customSendAllowedToDoor(struct CustomMsgHandlerArgs* sockAndargs){
     sendAndPrintFromModule(moduleName, "OPEN#", sockAndargs->socket);
     char* msg1 = recieveAndPrintMsg(sockAndargs->socket, moduleName);
-    if(strcmp(msg1,"OPENING")){
+    if(strcmp(msg1,"OPENING") == 0){
         char* msg2 = recieveAndPrintMsg(sockAndargs->socket, moduleName);
-        if(strcmp(msg2,"OPENED")){
+        if(strcmp(msg2,"OPENED") == 0){
             int microsecondsOpen = atoi(sockAndargs->arguments[3]);
             sleepMicroseconds(microsecondsOpen);
             sendAndPrintFromModule(moduleName, "CLOSE#", sockAndargs->socket);
@@ -322,7 +305,7 @@ void overseer(char* argV[]){
     int port = atoi(resultArray[1]);
     free(resultArray);
 
-    printf("Address: %s, Port: %d\n", address, port);
+    printf("%s: Address: %s, Port: %d\n",moduleName, address, port);
 
     //Ip TCP stuff///////////////////////
     int listenTCPSocketFD = openAndBindNewTCPport(port, moduleName);
