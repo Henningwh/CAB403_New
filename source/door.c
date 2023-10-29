@@ -137,14 +137,24 @@ void customHandleRecieveMessagesInDoor(struct CustomMsgHandlerArgs* sockAndargs)
         pthread_mutex_unlock(&mutex);
     }
 }
+
+//DOOR {id} {address:port} FAIL_SAFE#
+void customSendHelloToOverseer(struct CustomMsgHandlerArgs* sockAndargs){
+    char* id = sockAndargs->arguments[1];
+    char* addrPort = sockAndargs->arguments[2];
+    char mode = sockAndargs->arguments[3];
+    char msg[50];
+    sprintf(msg, "DOOR %s %s %s#", id, addrPort, mode);
+    sendAndPrintFromModule(moduleName, msg, sockAndargs->socket);
+    close(sockAndargs->socket);
+}
+
 void door(int argc, char *argv[]) {
     char* idFromArg = argv[1];
 
     pthread_mutex_init(&mutex, NULL);
     pthread_cond_init(&cond_start, NULL);
     pthread_cond_init(&cond_end, NULL);
-
-    printf("INitialized mutexes\n");
 
     char **resultArray = (char **)malloc(10 * sizeof(char *));
     char *input = argv[2];
@@ -155,6 +165,9 @@ void door(int argc, char *argv[]) {
     free(resultArray);
 
         //Ip TCP stuff///////////////////////
+
+
+
     int listenTCPSocketFD = openAndBindNewTCPport(port, moduleName);
     struct CustomRecieveMsgHandlerAndDependencies doorMsgHandlerStruct;
     doorMsgHandlerStruct.customMsgHandler = customHandleRecieveMessagesInDoor;
@@ -168,6 +181,25 @@ void door(int argc, char *argv[]) {
     //accepting connections and messages in separate thread
     pthread_t id;
     pthread_create(&id,NULL,continouslyAcceptConnections,(void*)&doorMsgHandlerStruct);
+
+
+    //Send Hello
+
+    char **resultArrayO = (char **)malloc(10 * sizeof(char *));
+    char *inputO = argv[6];
+    splitString(inputO, ":", resultArrayO, maxSeqments);
+    char* addressO = strdup(resultArrayO[0]);
+    int portO = atoi(resultArrayO[1]);
+
+    free(resultArrayO);
+    struct CustomSendMsgHandlerAndDependencies sendHelloStruct;
+            sendHelloStruct.remoteAddr = addressO;
+            sendHelloStruct.remotePort = portO;
+            sendHelloStruct.arguments = argv;
+            sendHelloStruct.customMsgHandler = customSendHelloToOverseer;
+            sendHelloStruct.moduleName = moduleName;
+    connectToRemoteSocketAndSendMessage(&sendHelloStruct);
+
 
     pthread_join(&id, NULL);
 
